@@ -56,22 +56,25 @@ class _RidersScreenState extends State<RidersScreen> {
   }
 
   Future<void> _loadRidersData() async {
-    // Only show full screen loader on first load, otherwise refresh silently
     if (_riders.isEmpty) setState(() => _loading = true);
 
     try {
-      // 1. Fetch all riders
+      // 1. Fetch all riders (This automatically brings the accurate 'Total Due' from the database)
       final data = await supabase.from(AppConstants.ridersTable).select().order('created_at', ascending: false);
 
-      // 2. Fetch today's delivered orders to calculate "Today's Cash" dynamically
       final now = DateTime.now();
       final todayStart = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
+
+      // 2. Fetch today's delivered orders (Daily Performance Metric)
       final ordersData = await supabase.from(AppConstants.ordersTable)
           .select('delivery_rider_id, rider_id, total_price')
           .eq('status', 'delivered')
           .gte('updated_at', todayStart);
 
       Map<String, double> cashMap = {};
+
+      // 3. Add up today's earnings. We DO NOT subtract collections here.
+      // This ensures "Today's Cash" stays exactly at what they earned today.
       for(var o in ordersData) {
         String rId = o['delivery_rider_id']?.toString() ?? o['rider_id']?.toString() ?? '';
         if (rId.isNotEmpty) {
@@ -81,7 +84,7 @@ class _RidersScreenState extends State<RidersScreen> {
 
       if (mounted) setState(() {
         _riders = List<Map<String, dynamic>>.from(data);
-        _todayCashMap = cashMap;
+        _todayCashMap = cashMap; // Locks in the daily cash handled
         _loading = false;
       });
     }
@@ -248,7 +251,7 @@ class _CollectCashDialogState extends State<_CollectCashDialog> {
 
   Future<void> _sendNotificationToRider(String targetRiderId, double amount) async {
     const String oneSignalAppId = '98573413-e76f-4636-9442-40cce7f1e70e';
-    const String oneSignalRestApiKey = 'os_v2_app_tbltie7hn5ddnfccidgop4phbzzojxruownutrentkfjvytww7j4k4aesmwnhxkgypagmwxwtevei4rrce4liafttov52perm4xbkgi';
+    const String oneSignalRestApiKey = 'os_v2_app_tbltie7hn5ddnfccidgop4phbykr7fbpwofuxm4wmj5hglkl6bwuj7efh5lxquokyqb37jxnnbh3zb7l32iezulpufsd7y2yfki6uoi';
 
     try {
       final response = await http.post(
