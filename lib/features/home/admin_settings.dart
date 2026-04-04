@@ -48,10 +48,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     currentUser = Supabase.instance.client.auth.currentUser;
 
     if (currentUser != null) {
-      _nameCtrl.text = currentUser!.userMetadata?['full_name'] as String? ?? (widget.isSuperAdmin ? 'Abdul Aowal Asif' : 'Manager');
+      _nameCtrl.text = currentUser!.userMetadata?['full_name'] as String? ?? (widget.isSuperAdmin ? 'MD. Imran Hasan' : 'Manager');
       _phoneCtrl.text = currentUser!.userMetadata?['phone'] as String? ?? '';
-      _emailCtrl.text = currentUser!.email ?? '';
-
+      _emailCtrl.text = currentUser!.email ?? 'imranhasan13421@gmail.com';
+      debugPrint("Logged in as: ${_nameCtrl.text}");
+      debugPrint("My Metadata Role: ${currentUser!.userMetadata?['role']}");
       final createdAt = DateTime.tryParse(currentUser!.createdAt);
       if (createdAt != null) {
         const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -310,7 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Row(children: [
             CircleAvatar(radius: 22, backgroundColor: AppColors.primary, child: Text('A', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))),
             const SizedBox(width: 16),
-            Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Abdul Aowal Asif', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)), const SizedBox(height: 2), Text('abdulaowalasif2001@gmail.com', style: GoogleFonts.inter(fontSize: 13, color: AppColors.subtext))])),
+            Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('MD. Imran Hasan', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)), const SizedBox(height: 2), Text('imranhasan13421@gmail.com', style: GoogleFonts.inter(fontSize: 13, color: AppColors.subtext))])),
             Expanded(flex: 2, child: Row(children: [_roleBadge('Super Admin')])),
             Expanded(flex: 2, child: Text('Global Access', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600))),
             const SizedBox(width: 46), // matches icon width to align

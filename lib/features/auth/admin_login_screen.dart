@@ -40,7 +40,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
       final String userEmail = res.user!.email!;
 
-      if (userEmail != 'abdulaowalasif2001@gmail.com') {
+      if (userEmail != 'imranhasan13421@gmail.com') {
         final teamRes = await supabase.from('team_members')
             .select()
             .eq('email', userEmail)
