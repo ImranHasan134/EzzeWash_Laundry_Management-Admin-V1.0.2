@@ -2,12 +2,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/color/app_colors.dart';
 import '../../main.dart';
 import 'service_reviews_screen.dart';
 
-// --- NEW: Bulletproof Data Class to prevent silent Dart math errors ---
 class MonthlyStatData {
   int orders = 0;
   int delivered = 0;
@@ -27,12 +29,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
   String? _error;
   List<Map<String, dynamic>> _byService = [];
 
-  // State variables for Monthly Selector
+  List<Map<String, dynamic>> _rawOrders = [];
+  List<Map<String, dynamic>> _rawReviews = [];
+
   int _selectedMonth = DateTime.now().month;
   int _selectedYear = DateTime.now().year;
-  List<int> _availableYears = [2025, 2026];
+  List<int> _availableYears = [2026, 2025];
 
-  // Unified Map using the bulletproof class
   Map<String, MonthlyStatData> _monthlyStats = {};
 
   @override void initState() { super.initState(); _loadReports(); }
@@ -45,14 +48,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
         query = query.eq('store_id', widget.managerStoreId!);
       }
       final orders = await query;
-      final all = orders as List;
+      _rawOrders = List<Map<String, dynamic>>.from(orders);
 
       final reviewsData = await supabase.from('reviews').select('rating, service_id');
-      final reviewsList = reviewsData as List;
+      _rawReviews = List<Map<String, dynamic>>.from(reviewsData);
 
       final ratingSum = <String, double>{};
       final ratingCount = <String, int>{};
-      for (final r in reviewsList) {
+      for (final r in _rawReviews) {
         final sId = r['service_id'] as String?;
         if (sId == null) continue;
         final rating = (r['rating'] as num?)?.toDouble() ?? 0.0;
@@ -60,21 +63,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ratingCount[sId] = (ratingCount[sId] ?? 0) + 1;
       }
 
-      // --- ROBUST MONTHLY CALCULATION ---
-      int minYear = 2025; // Force 2025 to be included
+      int minYear = 2025;
       final tempStats = <String, MonthlyStatData>{};
 
-      for (final o in all) {
+      for (final o in _rawOrders) {
         if (o['created_at'] == null) continue;
         final d = DateTime.parse(o['created_at']).toLocal();
         if (d.year < minYear) minYear = d.year;
 
         final key = '${d.month}-${d.year}';
-
-        // Initialize if it doesn't exist yet
         tempStats.putIfAbsent(key, () => MonthlyStatData());
-
-        // Safe math operations
         tempStats[key]!.orders += 1;
 
         if (o['status'] == 'delivered') {
@@ -83,13 +81,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
         }
       }
 
-      // Populate available years
       _availableYears = List.generate(DateTime.now().year - minYear + 1, (i) => minYear + i);
-      if (!_availableYears.contains(_selectedYear)) _selectedYear = _availableYears.first;
+      if (!_availableYears.contains(_selectedYear)) _selectedYear = _availableYears.last;
 
-      // Map Orders by Service
       final svcData = <String, Map<String, dynamic>>{};
-      for (final o in all) {
+      for (final o in _rawOrders) {
         final sId = o['service_id'] as String?;
         if (sId == null) continue;
         final title = (o['services'] as Map?)?['title'] as String? ?? 'Unknown';
@@ -126,13 +122,197 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  Future<void> _exportMonthlyPDF() async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Preparing PDF... Select "Save as PDF" in the print dialog.'),
+          duration: Duration(seconds: 3),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+
+      final selectedMonthOrders = _rawOrders.where((o) {
+        if (o['created_at'] == null) return false;
+        final d = DateTime.parse(o['created_at']).toLocal();
+        return d.month == _selectedMonth && d.year == _selectedYear;
+      }).toList();
+
+      int totalMonthOrders = selectedMonthOrders.length;
+      double totalMonthRevenue = 0.0;
+
+      final serviceDetails = <String, Map<String, dynamic>>{};
+
+      for (final o in selectedMonthOrders) {
+        final sId = o['service_id'] as String?;
+        if (sId == null) continue;
+        final title = (o['services'] as Map?)?['title'] as String? ?? 'Unknown';
+        final status = o['status'] as String? ?? '';
+
+        if (!serviceDetails.containsKey(sId)) {
+          serviceDetails[sId] = {
+            'title': title, 'total': 0, 'delivered': 0,
+            'cancelled': 0, 'picked_up': 0, 'revenue': 0.0
+          };
+        }
+
+        serviceDetails[sId]!['total'] += 1;
+        if (status == 'delivered') {
+          serviceDetails[sId]!['delivered'] += 1;
+          final price = ((o['total_price'] as num?)?.toDouble() ?? 0.0);
+          serviceDetails[sId]!['revenue'] += price;
+          totalMonthRevenue += price;
+        }
+        if (status == 'cancelled') serviceDetails[sId]!['cancelled'] += 1;
+        if (status == 'picked_up' || status == 'out_for_delivery' || status == 'dropped') {
+          serviceDetails[sId]!['picked_up'] += 1;
+        }
+      }
+
+      final tableData = serviceDetails.entries.map((e) {
+        final sId = e.key;
+        final data = e.value;
+
+        final relevantReviews = _rawReviews.where((r) => r['service_id'] == sId).toList();
+        double avgRating = 0.0;
+        if (relevantReviews.isNotEmpty) {
+          final sum = relevantReviews.fold(0.0, (prev, element) => prev + ((element['rating'] as num?)?.toDouble() ?? 0.0));
+          avgRating = sum / relevantReviews.length;
+        }
+
+        return [
+          data['title'],
+          avgRating > 0 ? avgRating.toStringAsFixed(1) : 'N/A',
+          data['total'].toString(),
+          (data['picked_up'] + data['delivered']).toString(),
+          data['delivered'].toString(),
+          data['cancelled'].toString(),
+          'BDT ${data['revenue'].toStringAsFixed(0)}'
+        ];
+      }).toList();
+
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (pw.Context context) {
+            return [
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('EzeeWash Analytics', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+                      pw.SizedBox(height: 4),
+                      pw.Text('Monthly Performance Report', style: pw.TextStyle(fontSize: 14, color: PdfColors.grey700)),
+                    ],
+                  ),
+                  pw.Text('${_monthName(_selectedMonth)} $_selectedYear', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+              pw.SizedBox(height: 30),
+
+              pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildPdfSummaryBox('Total Revenue', 'BDT ${totalMonthRevenue.toStringAsFixed(0)}', PdfColors.green50),
+                    _buildPdfSummaryBox('Total Orders', '$totalMonthOrders', PdfColors.blue50),
+                  ]
+              ),
+              pw.SizedBox(height: 40),
+
+              pw.Text('Service Breakdown (${_monthName(_selectedMonth)})', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.TableHelper.fromTextArray(
+                context: context,
+                border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+                headerDecoration: const pw.BoxDecoration(color: PdfColors.blue50),
+                headerHeight: 35,
+                cellHeight: 30,
+                cellAlignments: {
+                  0: pw.Alignment.centerLeft,
+                  1: pw.Alignment.center,
+                  2: pw.Alignment.center,
+                  3: pw.Alignment.center,
+                  4: pw.Alignment.center,
+                  5: pw.Alignment.center,
+                  6: pw.Alignment.centerRight,
+                },
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+                cellStyle: const pw.TextStyle(fontSize: 10),
+                headers: ['Service Name', 'Rating', 'Total', 'Picked Up', 'Delivered', 'Cancelled', 'Revenue'],
+                data: tableData.isEmpty ? [['No orders for this month', '', '', '', '', '', '']] : tableData,
+              ),
+
+              pw.SizedBox(height: 40),
+              pw.Divider(color: PdfColors.grey300),
+              pw.SizedBox(height: 10),
+              pw.Text('Generated on ${DateTime.now().toLocal().toString().split('.')[0]}', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+            ];
+          },
+        ),
+      );
+
+      // We use layoutPdf because it works safely across Desktop, Web, and Mobile.
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: 'EzeeWash_Report_${_monthName(_selectedMonth)}_$_selectedYear.pdf',
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to generate PDF: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  pw.Widget _buildPdfSummaryBox(String title, String value, PdfColor bgColor) {
+    return pw.Container(
+        width: 230,
+        padding: const pw.EdgeInsets.all(20),
+        decoration: pw.BoxDecoration(
+            color: bgColor,
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+            border: pw.Border.all(color: PdfColors.grey300, width: 0.5)
+        ),
+        child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(title, style: pw.TextStyle(fontSize: 12, color: PdfColors.grey800)),
+              pw.SizedBox(height: 8),
+              pw.Text(value, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+            ]
+        )
+    );
+  }
+
   @override Widget build(BuildContext context) {
     return Column(children: [
       Container(
         height: 72, padding: const EdgeInsets.symmetric(horizontal: 32), decoration: const BoxDecoration(color: AppColors.surface, border: Border(bottom: BorderSide(color: AppColors.border))),
         child: Row(children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text('Reports & Analytics', style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.text)), Text(widget.isSuperAdmin ? 'Business performance overview' : 'Your Store Performance Overview', style: GoogleFonts.inter(fontSize: 14, color: AppColors.subtext))]),
-          const Spacer(), Container(decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(10)), child: IconButton(icon: const Icon(Icons.refresh_rounded, color: AppColors.text), onPressed: _loadReports)),
+          const Spacer(),
+
+          Container(
+              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+              child: IconButton(
+                  icon: const Icon(Icons.picture_as_pdf_rounded, color: AppColors.primary),
+                  tooltip: 'Export Monthly PDF',
+                  onPressed: _rawOrders.isEmpty ? null : _exportMonthlyPDF
+              )
+          ),
+          const SizedBox(width: 12),
+
+          Container(decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(10)), child: IconButton(icon: const Icon(Icons.refresh_rounded, color: AppColors.text), onPressed: _loadReports)),
         ]),
       ),
       Expanded(
@@ -142,7 +322,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
           padding: const EdgeInsets.all(32),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-            // Show error message clearly if something fails
             if (_error != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 24),
@@ -151,7 +330,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 child: Text('Error: $_error', style: const TextStyle(color: Colors.red)),
               ),
 
-            // --- UNIFIED MONTHLY PERFORMANCE CARD ---
             _MonthlyPerformanceCard(
               selectedMonth: _selectedMonth,
               selectedYear: _selectedYear,
@@ -162,9 +340,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
             const SizedBox(height: 32),
 
-            // --- ORDERS BY SERVICE SECTION ---
             if (_byService.isNotEmpty) ...[
-              Text('Orders by Service', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text)), const SizedBox(height: 16),
+              Text('Orders by Service (All-Time)', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text)), const SizedBox(height: 16),
               Container(
                 decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Column(children: _byService.map((s) {
@@ -237,9 +414,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
     ]);
   }
+
+  String _monthName(int m) => const ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m];
 }
 
-// --- REDESIGNED MONTHLY CARD ---
 class _MonthlyPerformanceCard extends StatelessWidget {
   final int selectedMonth;
   final int selectedYear;
