@@ -6,6 +6,9 @@ import 'core/constants/app_constants.dart';
 import 'core/theme/color/app_colors.dart';
 import 'features/auth/admin_login_screen.dart';
 
+// GLOBAL THEME NOTIFIER
+final ValueNotifier<bool> darkModeNotifier = ValueNotifier(false);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
@@ -22,16 +25,25 @@ class AdminApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'EzzeWash Admin',
-      theme: ThemeData(
-        colorScheme: const ColorScheme.light(primary: AppColors.primary),
-        scaffoldBackgroundColor: AppColors.background,
-        textTheme: GoogleFonts.alexandriaTextTheme(),
-        useMaterial3: true,
-      ),
-      home: const AdminLoginScreen(),
+    return ValueListenableBuilder<bool>(
+      valueListenable: darkModeNotifier,
+      builder: (context, isDark, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'EzzeWash Admin',
+          theme: ThemeData(
+            // Use seed for better automatic dark mode transitions
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: AppColors.primary,
+              brightness: isDark ? Brightness.dark : Brightness.light,
+            ),
+            scaffoldBackgroundColor: AppColors.background,
+            textTheme: GoogleFonts.alexandriaTextTheme(),
+            useMaterial3: true,
+          ),
+          home: const AdminLoginScreen(),
+        );
+      },
     );
   }
 }

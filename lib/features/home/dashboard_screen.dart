@@ -88,7 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoadingRole) {
-      return const Scaffold(backgroundColor: AppColors.background, body: Center(child: CircularProgressIndicator(color: AppColors.primary)));
+      return  Scaffold(backgroundColor: AppColors.background, body: Center(child: CircularProgressIndicator(color: AppColors.primary)));
     }
 
     return Scaffold(
@@ -100,7 +100,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               width: collapsed ? 80 : 260,
-              decoration: const BoxDecoration(color: AppColors.surface, border: Border(right: BorderSide(color: AppColors.border))),
+              decoration:  BoxDecoration(color: AppColors.surface, border: Border(right: BorderSide(color: AppColors.border))),
               child: _Sidebar(
                 collapsed: collapsed,
                 selectedIndex: _selectedIndex,
@@ -330,7 +330,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
     return Column(children: [
       Container(
         height: 72, padding: const EdgeInsets.symmetric(horizontal: 32),
-        decoration: const BoxDecoration(color: AppColors.surface, border: Border(bottom: BorderSide(color: AppColors.border))),
+        decoration:  BoxDecoration(color: AppColors.surface, border: Border(bottom: BorderSide(color: AppColors.border))),
         child: Row(children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
             Row(children: [
@@ -347,7 +347,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
             ]),
           ]),
           const Spacer(),
-          Container(decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(10)), child: IconButton(icon: const Icon(Icons.refresh_rounded, color: AppColors.text), onPressed: () { setState((){_loading=true;}); _loadStats(); })),
+          Container(decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(10)), child: IconButton(icon: Icon(Icons.refresh_rounded, color: AppColors.text), onPressed: () { setState((){_loading=true;}); _loadStats(); })),
         ]),
       ),
       Expanded(
@@ -407,7 +407,7 @@ class _LiveRidersPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.all(24), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Live Dispatch', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)), GestureDetector(onTap: () => onNavigate(2), child: Text('View All', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold)))])),
+        Padding(padding: const EdgeInsets.all(24), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Live Dispatch', style: GoogleFonts.outfit(fontSize: 18, color: Colors.green, fontWeight: FontWeight.bold)), GestureDetector(onTap: () => onNavigate(2), child: Text('View All', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold)))])),
         const Divider(height: 1),
         if (riders.isEmpty) Padding(padding: const EdgeInsets.all(40), child: Center(child: Text('No riders online right now.', style: GoogleFonts.inter(color: AppColors.subtext))))
         else ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: riders.length, separatorBuilder: (_, __) => const Divider(height: 1), itemBuilder: (context, i) {
@@ -444,7 +444,7 @@ class _ActionRequiredFeed extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.all(24), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Attention Required', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)), GestureDetector(onTap: () => onNavigate(1), child: Text('Manage Orders', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold)))])),
+        Padding(padding: const EdgeInsets.all(24), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Attention Required', style: GoogleFonts.outfit(fontSize: 18,color: Colors.red, fontWeight: FontWeight.bold)), GestureDetector(onTap: () => onNavigate(1), child: Text('Manage Orders', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold)))])),
         const Divider(height: 1),
         if (orders.isEmpty) Padding(padding: const EdgeInsets.all(48), child: Center(child: Text('All caught up! Great job.', style: GoogleFonts.inter(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 15))))
         else ListView.separated(
@@ -464,9 +464,9 @@ class _ActionRequiredFeed extends StatelessWidget {
                   Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: uColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.warning_amber_rounded, color: uColor, size: 22)),
                   const SizedBox(width: 16),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('#${o['order_number']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text('#${o['order_number']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.accent,)),
                     const SizedBox(height: 4),
-                    Text('${o['profiles']['full_name']} • ${o['status'].toString().toUpperCase().replaceAll('_', ' ')}', style: GoogleFonts.inter(fontSize: 13, color: AppColors.subtext)),
+                    Text('${o['profiles']['full_name']} • ${o['status'].toString().toUpperCase().replaceAll('_', ' ')}', style: GoogleFonts.inter(fontSize: 13, color: AppColors.text)),
                   ])),
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Text(urgency['text'], style: GoogleFonts.inter(color: uColor, fontWeight: FontWeight.bold, fontSize: 13)),

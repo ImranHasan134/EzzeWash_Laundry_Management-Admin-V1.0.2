@@ -98,7 +98,7 @@ class _ServiceReviewsScreenState extends State<ServiceReviewsScreen> {
         backgroundColor: AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.text),
+        iconTheme:  IconThemeData(color: AppColors.text),
         title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -109,7 +109,7 @@ class _ServiceReviewsScreenState extends State<ServiceReviewsScreen> {
         // --- ADDED SORT BUTTON HERE ---
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.sort_rounded, color: AppColors.text),
+            icon:  Icon(Icons.sort_rounded, color: AppColors.text),
             tooltip: 'Sort By',
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             color: AppColors.surface,
@@ -218,7 +218,8 @@ class _ServiceReviewsScreenState extends State<ServiceReviewsScreen> {
               // Comment Section
               if (comment != null && comment.trim().isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text('"$comment"', style: GoogleFonts.inter(fontSize: 14, color: AppColors.text, height: 1.5, fontStyle: FontStyle.italic)),
+          Text('"$comment"', style: GoogleFonts.inter(fontSize: 14, color: AppColors.text, height: 1.5, fontStyle: FontStyle.normal
+          )),
           ],
 
           // Associated Order Info
@@ -229,7 +230,7 @@ class _ServiceReviewsScreenState extends State<ServiceReviewsScreen> {
           decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
           child: Row(
           children: [
-          const Icon(Icons.receipt_long_rounded, size: 16, color: AppColors.subtext),
+           Icon(Icons.receipt_long_rounded, size: 16, color: AppColors.subtext),
           const SizedBox(width: 8),
           Expanded(
           child: Text(

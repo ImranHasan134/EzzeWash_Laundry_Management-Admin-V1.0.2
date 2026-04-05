@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/color/app_colors.dart';
+import '../../main.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool isSuperAdmin;
@@ -111,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
-        height: 72, padding: const EdgeInsets.symmetric(horizontal: 32), decoration: const BoxDecoration(color: AppColors.surface, border: Border(bottom: BorderSide(color: AppColors.border))),
+        height: 72, padding: const EdgeInsets.symmetric(horizontal: 32), decoration: BoxDecoration(color: AppColors.surface, border: Border(bottom: BorderSide(color: AppColors.border))),
         child: Row(children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
             Text('Settings', style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.text)),
@@ -203,6 +204,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               setState(() => _isSaving = false);
             }),
           ])
+      ),
+      const SizedBox(height: 24),
+      _sectionCard(
+        title: 'Appearance',
+        icon: Icons.dark_mode_outlined,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Dark Mode', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.text)),
+                Text('Adjust the app theme to your preference', style: GoogleFonts.inter(fontSize: 13, color: AppColors.subtext)),
+              ],
+            ),
+            Switch(
+              value: darkModeNotifier.value,
+              activeColor: AppColors.primary,
+              onChanged: (val) {
+                setState(() {
+                  darkModeNotifier.value = val;
+                });
+              },
+            ),
+          ],
+        ),
       ),
     ]);
   }
@@ -334,7 +361,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(m['email'].split('@')[0], style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)), const SizedBox(height: 2), Text(m['email'], style: GoogleFonts.inter(fontSize: 13, color: AppColors.subtext))])),
                 Expanded(flex: 2, child: Row(children: [_roleBadge(m['role'] ?? 'Manager')])),
                 // UPDATED TO SHOW STORE AND LOCATION
-                Expanded(flex: 2, child: Row(children: [const Icon(Icons.storefront, size: 16, color: AppColors.subtext), const SizedBox(width: 6), Flexible(child: Text(storeDisplay, style: GoogleFonts.inter(fontSize: 13, color: AppColors.subtext, fontWeight: FontWeight.w600)))])),
+                Expanded(flex: 2, child: Row(children: [ Icon(Icons.storefront, size: 16, color: AppColors.subtext), const SizedBox(width: 6), Flexible(child: Text(storeDisplay, style: GoogleFonts.inter(fontSize: 13, color: AppColors.subtext, fontWeight: FontWeight.w600)))])),
                 IconButton(icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 22), onPressed: () async {
                   await Supabase.instance.client.from('team_members').delete().eq('id', m['id']);
                   _loadTeamMembers();
@@ -412,8 +439,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     hintText: hint, hintStyle: GoogleFonts.inter(color: Colors.grey.shade400, fontSize: 14),
     filled: true, fillColor: readOnly ? AppColors.background : AppColors.surface,
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide:  BorderSide(color: AppColors.border)),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide:  BorderSide(color: AppColors.border)),
     focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
   );
 
