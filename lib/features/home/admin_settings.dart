@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
 import '../../core/theme/color/app_colors.dart';
 import '../../main.dart';
 
@@ -43,6 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   List<Map<String, dynamic>> _teamMembers = [];
   List<Map<String, dynamic>> _storesList = [];
+  List<Map<String, dynamic>> _servicesList = [];
   User? currentUser;
   String _joinedDate = 'Unknown';
 
@@ -70,6 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await Future.wait([
       _loadBusinessSettings(),
       if (widget.isSuperAdmin) _loadTeamMembers(),
+      if (widget.isSuperAdmin) _loadServices(),
     ]);
 
     if (mounted) setState(() => _loading = false);
@@ -103,12 +107,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _loadServices() async {
+    try {
+      final data = await Supabase.instance.client.from('services').select().order('created_at', ascending: false);
+      setState(() {
+        _servicesList = List<Map<String, dynamic>>.from(data);
+      });
+    } catch (e) {
+      debugPrint('Error loading services: $e');
+    }
+  }
+
+  Future<void> _toggleServiceStatus(Map<String, dynamic> service) async {
+    final currentStatus = service['is_active'] ?? true;
+    final newStatus = !currentStatus;
+    try {
+      await Supabase.instance.client.from('services').update({'is_active': newStatus}).eq('id', service['id']);
+      _loadServices();
+      _showToast(newStatus ? '${service['title']} is now Available' : '${service['title']} is now Unavailable', newStatus ? AppColors.success : AppColors.warning);
+    } catch (e) {
+      _showToast('Error updating status: $e', AppColors.error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tabs = [
       {'id': 'profile', 'name': 'Profile', 'icon': Icons.person_outline},
       {'id': 'security', 'name': 'Security', 'icon': Icons.shield_outlined},
       if (widget.isSuperAdmin) {'id': 'team', 'name': 'Team', 'icon': Icons.people_outline},
+      if (widget.isSuperAdmin) {'id': 'services', 'name': 'Services', 'icon': Icons.dry_cleaning_outlined},
       if (widget.isSuperAdmin) {'id': 'business', 'name': 'Business', 'icon': Icons.storefront_outlined},
     ];
 
@@ -135,14 +163,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.all(32),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-              // --- MODERN SEGMENTED TAB SELECTOR ---
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(color: _isDark(context) ? const Color(0xFF334155).withOpacity(0.5) : const Color(0xFFE2E8F0).withOpacity(0.7), borderRadius: BorderRadius.circular(14)),
                 child: Row(mainAxisSize: MainAxisSize.min, children: List.generate(tabs.length, (i) {
                   final sel = _tab == i;
                   return GestureDetector(
-                    onTap: () => setState(() { _tab = i; _isInviting = false; }),
+                    onTap: () {
+                      setState(() { _tab = i; _isInviting = false; });
+                      if (tabs[i]['id'] == 'team') _loadTeamMembers();
+                      if (tabs[i]['id'] == 'services') _loadServices();
+                      if (tabs[i]['id'] == 'business') _loadBusinessSettings();
+                    },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -165,6 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (tabs[_tab]['id'] == 'profile') _profileTab(),
               if (tabs[_tab]['id'] == 'security') _securityTab(),
               if (tabs[_tab]['id'] == 'team') _teamTab(),
+              if (tabs[_tab]['id'] == 'services') _servicesTab(),
               if (tabs[_tab]['id'] == 'business') _businessTab(),
             ]),
           ),
@@ -311,7 +344,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Expanded(flex: 1, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('Role', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: _textColor(context))),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(value: _inviteRole, icon: const Icon(Icons.keyboard_arrow_down, size: 20), items: ['Manager'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))))).toList(), onChanged: (v) => setState(() => _inviteRole = v!), decoration: _inputDeco()),
+                      DropdownButtonFormField<String>(value: _inviteRole, icon: const Icon(Icons.keyboard_arrow_down, size: 20), items: ['Manager'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))))).toList(), onChanged: (v) => setState(() => _inviteRole = v!), decoration: _inputDeco(), dropdownColor: _surfaceColor(context)),
                     ])),
                   ]),
                   const SizedBox(height: 16),
@@ -325,7 +358,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           icon: const Icon(Icons.storefront_outlined, size: 20),
                           items: _storesList.map((s) => DropdownMenuItem(value: s['id'] as String, child: Text('${s['name']} (${s['city']})', style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))))).toList(),
                           onChanged: (v) => setState(() => _inviteStoreId = v),
-                          decoration: _inputDeco()
+                          decoration: _inputDeco(),
+                          dropdownColor: _surfaceColor(context)
                       ),
                     ])),
                     const SizedBox(width: 16),
@@ -355,7 +389,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 32),
           ],
 
-          // Team List Header
           Row(children: [
             CircleAvatar(radius: 22, backgroundColor: AppColors.primary, child: Text('I', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))),
             const SizedBox(width: 16),
@@ -393,6 +426,326 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           )
         ])
+    );
+  }
+
+  Widget _servicesTab() {
+    final available = _servicesList.where((s) => (s['is_active'] ?? true) == true).toList();
+    final unavailable = _servicesList.where((s) => (s['is_active'] ?? true) == false).toList();
+
+    return _sectionCard(
+        title: 'Manage Services',
+        subtitle: '${_servicesList.length} total services across the platform',
+        icon: Icons.dry_cleaning_outlined,
+        iconColor: Colors.blueAccent,
+        actionWidget: ElevatedButton.icon(
+          onPressed: () => _showAddOrEditServiceDialog(null),
+          icon: const Icon(Icons.add, color: Colors.white, size: 18),
+          label: Text('Add Service', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), elevation: 2, shadowColor: AppColors.primary.withOpacity(0.5)),
+        ),
+        child: Column(
+          children: [
+            _buildServiceListCard(
+              title: 'Available Services',
+              services: available,
+              isFlickering: true,
+              themeColor: _isDark(context) ? Colors.greenAccent : Colors.green,
+              bgColor: _isDark(context) ? Colors.greenAccent.withOpacity(0.08) : Colors.green.shade50,
+            ),
+            const SizedBox(height: 32),
+            _buildServiceListCard(
+              title: 'Unavailable Services',
+              services: unavailable,
+              isFlickering: false,
+              themeColor: _isDark(context) ? Colors.redAccent : Colors.red,
+              bgColor: _isDark(context) ? Colors.redAccent.withOpacity(0.08) : Colors.red.shade50,
+            ),
+          ],
+        )
+    );
+  }
+
+  Widget _buildServiceListCard({required String title, required List<Map<String, dynamic>> services, required bool isFlickering, required Color themeColor, required Color bgColor}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _bgColor(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderColor(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            decoration: BoxDecoration(color: bgColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(15))),
+            child: isFlickering
+                ? _FlickerText(text: title, style: GoogleFonts.outfit(fontSize: 16, color: themeColor, fontWeight: FontWeight.bold))
+                : Text(title, style: GoogleFonts.outfit(fontSize: 16, color: themeColor, fontWeight: FontWeight.bold)),
+          ),
+          services.isEmpty
+              ? Padding(padding: const EdgeInsets.all(32), child: Center(child: Text('No $title found.', style: GoogleFonts.inter(color: _subtextColor(context)))))
+              : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: services.length,
+              separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor(context)),
+              itemBuilder: (ctx, i) {
+                final s = services[i];
+                final isActive = s['is_active'] ?? true;
+
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Row(children: [
+                    Container(
+                      width: 56, height: 56,
+                      decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                      child: s['image_url'] != null && s['image_url'].toString().isNotEmpty
+                          ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(s['image_url'], fit: BoxFit.cover, errorBuilder: (c, e, st) => const Icon(Icons.local_laundry_service, color: AppColors.primary)))
+                          : const Icon(Icons.local_laundry_service, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(s['title'] ?? '', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15, color: _textColor(context))),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(s['category'] ?? '', style: GoogleFonts.inter(fontSize: 12, color: _subtextColor(context))),
+                          const SizedBox(width: 8),
+                          if (s['tags'] != null && (s['tags'] as List).isNotEmpty)
+                            ...((s['tags'] as List).map((tag) => Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text(tag.toString(), style: GoogleFonts.inter(fontSize: 10, color: AppColors.accent, fontWeight: FontWeight.bold))),
+                            )))
+                        ],
+                      ),
+                    ])),
+                    Expanded(flex: 1, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Price', style: GoogleFonts.inter(fontSize: 11, color: _subtextColor(context))),
+                      Text('৳${s['price']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.primary)),
+                    ])),
+                    Expanded(flex: 1, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Duration', style: GoogleFonts.inter(fontSize: 11, color: _subtextColor(context))),
+                      Text(s['duration'] ?? 'N/A', style: GoogleFonts.inter(fontSize: 14, color: _textColor(context), fontWeight: FontWeight.w600)),
+                    ])),
+
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _toggleServiceStatus(s),
+                          icon: Icon(isActive ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 18),
+                          label: Text(isActive ? 'Make Unavailable' : 'Make Available', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12)),
+                          style: TextButton.styleFrom(foregroundColor: isActive ? AppColors.warning : AppColors.success),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle),
+                          child: IconButton(icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 18), tooltip: 'Edit Service', onPressed: () => _showAddOrEditServiceDialog(s)),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), shape: BoxShape.circle),
+                          child: IconButton(icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 18), tooltip: 'Delete Service', onPressed: () async {
+                            await Supabase.instance.client.from('services').delete().eq('id', s['id']);
+                            _loadServices();
+                            _showToast('Service deleted.', AppColors.info);
+                          }),
+                        )
+                      ],
+                    )
+                  ]),
+                );
+              }
+          )
+        ],
+      ),
+    );
+  }
+
+  void _showAddOrEditServiceDialog(Map<String, dynamic>? existingService) {
+    final isEditing = existingService != null;
+
+    final titleCtrl = TextEditingController(text: isEditing ? existingService['title'] : '');
+    final categoryCtrl = TextEditingController(text: isEditing ? existingService['category'] : 'Laundry');
+    final descCtrl = TextEditingController(text: isEditing ? existingService['description'] : '');
+    final priceCtrl = TextEditingController(text: isEditing ? existingService['price'].toString() : '');
+
+    final tag1Ctrl = TextEditingController();
+    final tag2Ctrl = TextEditingController();
+
+    if (isEditing && existingService['tags'] != null && (existingService['tags'] as List).isNotEmpty) {
+      final tags = existingService['tags'] as List;
+      tag1Ctrl.text = tags[0].toString();
+      if (tags.length > 1) tag2Ctrl.text = tags[1].toString();
+    }
+
+    String duration = isEditing && existingService['duration'] != null ? existingService['duration'] : '12-24 hours';
+
+    Uint8List? selectedImageBytes;
+    String? selectedImageExt;
+    bool isSubmitting = false;
+
+    showDialog(
+        context: context,
+        builder: (dialogCtx) => StatefulBuilder(
+            builder: (innerContext, setStateDialog) {
+              return AlertDialog(
+                backgroundColor: _surfaceColor(context),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: _borderColor(context))),
+                title: Text(isEditing ? 'Edit Service' : 'Add New Service', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: _textColor(context))),
+                content: SizedBox(
+                  width: 550,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+
+                        Text('Service Image', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () async {
+                            final ImagePicker picker = ImagePicker();
+                            final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                            if (image != null) {
+                              final bytes = await image.readAsBytes();
+                              setStateDialog(() {
+                                selectedImageBytes = bytes;
+                                selectedImageExt = image.name.split('.').last;
+                              });
+                            }
+                          },
+                          child: Container(
+                            height: 140, width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: _isDark(context) ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _borderColor(context), style: BorderStyle.solid),
+                            ),
+                            child: selectedImageBytes != null
+                                ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(selectedImageBytes!, fit: BoxFit.cover, width: double.infinity)),
+                                Positioned(bottom: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)), child: Text('Change Image', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))))
+                              ],
+                            )
+                                : (isEditing && existingService['image_url'] != null && existingService['image_url'].toString().isNotEmpty)
+                                ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(existingService['image_url'], fit: BoxFit.cover, width: double.infinity)),
+                                Positioned(bottom: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)), child: Text('Change Image', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))))
+                              ],
+                            )
+                                : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.cloud_upload_outlined, size: 28, color: AppColors.primary)),
+                                const SizedBox(height: 12),
+                                Text('Click to select an image', style: GoogleFonts.inter(color: _textColor(context), fontSize: 14, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        Row(children: [
+                          Expanded(child: _textField('Service Title *', titleCtrl, hint: 'e.g. Basic Wash')),
+                          const SizedBox(width: 16),
+                          Expanded(child: _textField('Category *', categoryCtrl, hint: 'e.g. Laundry')),
+                        ]),
+                        const SizedBox(height: 16),
+                        _textField('Description', descCtrl, hint: 'Short description of the service'),
+                        const SizedBox(height: 16),
+                        Row(children: [
+                          Expanded(child: _textField('Price (৳) *', priceCtrl, hint: 'e.g. 150.00')),
+                          const SizedBox(width: 16),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('Duration', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: duration,
+                              items: ['12-24 hours', '24-48 hours', '48-78 hours'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.inter(color: _textColor(context))))).toList(),
+                              onChanged: (v) => setStateDialog(() => duration = v!),
+                              decoration: _inputDeco(),
+                              dropdownColor: _surfaceColor(context),
+                            ),
+                          ])),
+                        ]),
+                        const SizedBox(height: 16),
+                        Row(children: [
+                          Expanded(child: _textField('Tag 1 (Optional)', tag1Ctrl, hint: 'e.g. Popular')),
+                          const SizedBox(width: 16),
+                          Expanded(child: _textField('Tag 2 (Optional)', tag2Ctrl, hint: 'e.g. Fast')),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(dialogCtx), child: Text('Cancel', style: GoogleFonts.inter(color: _subtextColor(context), fontWeight: FontWeight.bold))),
+                  ElevatedButton(
+                    onPressed: isSubmitting ? null : () async {
+                      if (titleCtrl.text.isEmpty || priceCtrl.text.isEmpty || categoryCtrl.text.isEmpty) {
+                        _showToast('Title, Category, and Price are required', AppColors.warning);
+                        return;
+                      }
+
+                      setStateDialog(() => isSubmitting = true);
+
+                      try {
+                        String? finalImageUrl = isEditing ? existingService['image_url'] : null;
+
+                        if (selectedImageBytes != null) {
+                          final timestamp = DateTime.now().millisecondsSinceEpoch;
+                          final filePath = 'service_$timestamp.$selectedImageExt';
+
+                          await Supabase.instance.client.storage.from('service-images').uploadBinary(filePath, selectedImageBytes!);
+                          finalImageUrl = Supabase.instance.client.storage.from('service-images').getPublicUrl(filePath);
+                        }
+
+                        final tags = [];
+                        if (tag1Ctrl.text.isNotEmpty) tags.add(tag1Ctrl.text.trim());
+                        if (tag2Ctrl.text.isNotEmpty) tags.add(tag2Ctrl.text.trim());
+
+                        final payload = {
+                          'title': titleCtrl.text.trim(),
+                          'category': categoryCtrl.text.trim(),
+                          'description': descCtrl.text.trim(),
+                          'price': double.tryParse(priceCtrl.text.trim()) ?? 0.0,
+                          'duration': duration,
+                          'image_url': finalImageUrl,
+                          'tags': tags,
+                        };
+
+                        if (isEditing) {
+                          await Supabase.instance.client.from('services').update(payload).eq('id', existingService['id']);
+                        } else {
+                          await Supabase.instance.client.from('services').insert(payload);
+                        }
+
+                        if (mounted) {
+                          Navigator.pop(dialogCtx);
+                          _loadServices();
+                          _showToast(isEditing ? 'Service updated successfully' : 'Service added successfully', AppColors.success);
+                        }
+                      } catch (e) {
+                        _showToast('Error: $e', AppColors.error);
+                        setStateDialog(() => isSubmitting = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                    child: isSubmitting
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : Text(isEditing ? 'Update Service' : 'Save Service', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                  )
+                ],
+              );
+            }
+        )
     );
   }
 
@@ -488,5 +841,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showToast(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)), backgroundColor: color, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))));
+  }
+}
+
+// ─── FLICKER ANIMATION WIDGET ───────────────────────────────────────────
+
+class _FlickerText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  const _FlickerText({required this.text, required this.style});
+
+  @override
+  State<_FlickerText> createState() => _FlickerTextState();
+}
+
+class _FlickerTextState extends State<_FlickerText> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.3, end: 1.0).animate(_controller),
+      child: Text(widget.text, style: widget.style),
+    );
   }
 }
