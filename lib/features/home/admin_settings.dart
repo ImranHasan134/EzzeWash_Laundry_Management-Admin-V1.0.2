@@ -72,6 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     await Future.wait([
       _loadBusinessSettings(),
+      if (widget.isSuperAdmin) _loadStores(), // Fetches stores for dropdowns & the Stores tab
       if (widget.isSuperAdmin) _loadTeamMembers(),
       if (widget.isSuperAdmin) _loadServices(),
     ]);
@@ -93,15 +94,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _loadStores() async {
+    try {
+      final data = await Supabase.instance.client.from('stores').select().order('created_at', ascending: false);
+      if (mounted) {
+        setState(() {
+          _storesList = List<Map<String, dynamic>>.from(data);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading stores: $e');
+    }
+  }
+
   Future<void> _loadTeamMembers() async {
     try {
-      final storesData = await Supabase.instance.client.from('stores').select('id, name, city');
       final data = await Supabase.instance.client.from('team_members').select('*, stores(name, city)').order('created_at');
-
-      setState(() {
-        _storesList = List<Map<String, dynamic>>.from(storesData);
-        _teamMembers = List<Map<String, dynamic>>.from(data);
-      });
+      if (mounted) setState(() => _teamMembers = List<Map<String, dynamic>>.from(data));
     } catch (e) {
       debugPrint('Error loading team: $e');
     }
@@ -110,9 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadServices() async {
     try {
       final data = await Supabase.instance.client.from('services').select().order('created_at', ascending: false);
-      setState(() {
-        _servicesList = List<Map<String, dynamic>>.from(data);
-      });
+      if (mounted) setState(() => _servicesList = List<Map<String, dynamic>>.from(data));
     } catch (e) {
       debugPrint('Error loading services: $e');
     }
@@ -130,14 +137,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _toggleStoreStatus(Map<String, dynamic> store) async {
+    final currentStatus = store['is_active'] ?? true;
+    final newStatus = !currentStatus;
+    try {
+      await Supabase.instance.client.from('stores').update({'is_active': newStatus}).eq('id', store['id']);
+      _loadStores();
+      _showToast(newStatus ? '${store['name']} is now Open' : '${store['name']} is now Closed', newStatus ? AppColors.success : AppColors.warning);
+    } catch (e) {
+      _showToast('Error updating store status: $e', AppColors.error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tabs = [
       {'id': 'profile', 'name': 'Profile', 'icon': Icons.person_outline},
       {'id': 'security', 'name': 'Security', 'icon': Icons.shield_outlined},
       if (widget.isSuperAdmin) {'id': 'team', 'name': 'Team', 'icon': Icons.people_outline},
+      if (widget.isSuperAdmin) {'id': 'stores', 'name': 'Stores', 'icon': Icons.store_mall_directory_outlined},
       if (widget.isSuperAdmin) {'id': 'services', 'name': 'Services', 'icon': Icons.dry_cleaning_outlined},
-      if (widget.isSuperAdmin) {'id': 'business', 'name': 'Business', 'icon': Icons.storefront_outlined},
+      if (widget.isSuperAdmin) {'id': 'business', 'name': 'Business', 'icon': Icons.business_center_outlined},
     ];
 
     if (_tab >= tabs.length) _tab = 0;
@@ -151,7 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Row(children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
               Text('Settings', style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: _textColor(context))),
-              Text('Manage your account, team, and business preferences', style: GoogleFonts.inter(fontSize: 14, color: _subtextColor(context))),
+              Text('Manage your account, team, stores, and business preferences', style: GoogleFonts.inter(fontSize: 14, color: _subtextColor(context))),
             ]),
           ]),
         ),
@@ -172,6 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () {
                       setState(() { _tab = i; _isInviting = false; });
                       if (tabs[i]['id'] == 'team') _loadTeamMembers();
+                      if (tabs[i]['id'] == 'stores') _loadStores();
                       if (tabs[i]['id'] == 'services') _loadServices();
                       if (tabs[i]['id'] == 'business') _loadBusinessSettings();
                     },
@@ -197,6 +218,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (tabs[_tab]['id'] == 'profile') _profileTab(),
               if (tabs[_tab]['id'] == 'security') _securityTab(),
               if (tabs[_tab]['id'] == 'team') _teamTab(),
+              if (tabs[_tab]['id'] == 'stores') _storesTab(),
               if (tabs[_tab]['id'] == 'services') _servicesTab(),
               if (tabs[_tab]['id'] == 'business') _businessTab(),
             ]),
@@ -429,6 +451,293 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // ─── STORES TAB ──────────────────────────────────────────────────────────────
+  Widget _storesTab() {
+    final available = _storesList.where((s) => (s['is_active'] ?? true) == true).toList();
+    final unavailable = _storesList.where((s) => (s['is_active'] ?? true) == false).toList();
+
+    return _sectionCard(
+        title: 'Manage Stores & Hubs',
+        subtitle: '${_storesList.length} total stores registered',
+        icon: Icons.store_mall_directory_outlined,
+        iconColor: Colors.deepPurpleAccent,
+        actionWidget: ElevatedButton.icon(
+          onPressed: () => _showAddOrEditStoreDialog(null),
+          icon: const Icon(Icons.add, color: Colors.white, size: 18),
+          label: Text('Add Store', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), elevation: 2, shadowColor: AppColors.primary.withOpacity(0.5)),
+        ),
+        child: Column(
+          children: [
+            _buildStoreListCard(
+              title: 'Open / Available Stores',
+              stores: available,
+              isFlickering: true,
+              themeColor: _isDark(context) ? Colors.greenAccent : Colors.green,
+              bgColor: _isDark(context) ? Colors.greenAccent.withOpacity(0.08) : Colors.green.shade50,
+            ),
+            const SizedBox(height: 32),
+            _buildStoreListCard(
+              title: 'Closed / Unavailable Stores',
+              stores: unavailable,
+              isFlickering: false,
+              themeColor: _isDark(context) ? Colors.redAccent : Colors.red,
+              bgColor: _isDark(context) ? Colors.redAccent.withOpacity(0.08) : Colors.red.shade50,
+            ),
+          ],
+        )
+    );
+  }
+
+  Widget _buildStoreListCard({required String title, required List<Map<String, dynamic>> stores, required bool isFlickering, required Color themeColor, required Color bgColor}) {
+    return Container(
+      decoration: BoxDecoration(color: _bgColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: _borderColor(context))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            decoration: BoxDecoration(color: bgColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(15))),
+            child: isFlickering
+                ? _FlickerText(text: title, style: GoogleFonts.outfit(fontSize: 16, color: themeColor, fontWeight: FontWeight.bold))
+                : Text(title, style: GoogleFonts.outfit(fontSize: 16, color: themeColor, fontWeight: FontWeight.bold)),
+          ),
+          stores.isEmpty
+              ? Padding(padding: const EdgeInsets.all(32), child: Center(child: Text('No $title found.', style: GoogleFonts.inter(color: _subtextColor(context)))))
+              : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: stores.length,
+              separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor(context)),
+              itemBuilder: (ctx, i) {
+                final s = stores[i];
+                final isActive = s['is_active'] ?? true;
+
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Row(children: [
+                    Container(
+                      width: 64, height: 64,
+                      decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                      child: s['logo_url'] != null && s['logo_url'].toString().isNotEmpty
+                          ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(s['logo_url'], fit: BoxFit.cover, errorBuilder: (c, e, st) => const Icon(Icons.storefront_rounded, color: AppColors.primary)))
+                          : const Icon(Icons.storefront_rounded, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(s['name'] ?? '', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: _textColor(context))),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on_outlined, size: 14, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Expanded(child: Text('${s['address']}, ${s['city'] ?? ''}', style: GoogleFonts.inter(fontSize: 13, color: _subtextColor(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        ],
+                      ),
+                    ])),
+                    Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Contact / Location', style: GoogleFonts.inter(fontSize: 11, color: _subtextColor(context))),
+                      const SizedBox(height: 4),
+                      Text(s['phone'] ?? 'N/A', style: GoogleFonts.inter(fontSize: 13, color: _textColor(context), fontWeight: FontWeight.w600)),
+                      Text('Lat: ${s['latitude'] ?? '-'}, Lng: ${s['longitude'] ?? '-'}', style: GoogleFonts.inter(fontSize: 11, color: _subtextColor(context))),
+                    ])),
+
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _toggleStoreStatus(s),
+                          icon: Icon(isActive ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 18),
+                          label: Text(isActive ? 'Close Store' : 'Open Store', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12)),
+                          style: TextButton.styleFrom(foregroundColor: isActive ? AppColors.warning : AppColors.success),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle),
+                          child: IconButton(icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 18), tooltip: 'Edit Store', onPressed: () => _showAddOrEditStoreDialog(s)),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), shape: BoxShape.circle),
+                          child: IconButton(icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 18), tooltip: 'Delete Store', onPressed: () async {
+                            await Supabase.instance.client.from('stores').delete().eq('id', s['id']);
+                            _loadStores();
+                            _showToast('Store deleted.', AppColors.info);
+                          }),
+                        )
+                      ],
+                    )
+                  ]),
+                );
+              }
+          )
+        ],
+      ),
+    );
+  }
+
+  void _showAddOrEditStoreDialog(Map<String, dynamic>? existingStore) {
+    final isEditing = existingStore != null;
+
+    final nameCtrl = TextEditingController(text: isEditing ? existingStore['name'] : '');
+    final addressCtrl = TextEditingController(text: isEditing ? existingStore['address'] : '');
+    final cityCtrl = TextEditingController(text: isEditing ? existingStore['city'] : '');
+    final phoneCtrl = TextEditingController(text: isEditing ? existingStore['phone'] : '');
+    final distanceCtrl = TextEditingController(text: isEditing && existingStore['distance_km'] != null ? existingStore['distance_km'].toString() : '');
+    final latCtrl = TextEditingController(text: isEditing && existingStore['latitude'] != null ? existingStore['latitude'].toString() : '');
+    final lngCtrl = TextEditingController(text: isEditing && existingStore['longitude'] != null ? existingStore['longitude'].toString() : '');
+
+    Uint8List? selectedImageBytes;
+    String? selectedImageExt;
+    bool isSubmitting = false;
+
+    showDialog(
+        context: context,
+        builder: (dialogCtx) => StatefulBuilder(
+            builder: (innerContext, setStateDialog) {
+              return AlertDialog(
+                backgroundColor: _surfaceColor(context),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: _borderColor(context))),
+                title: Text(isEditing ? 'Edit Store' : 'Add New Store', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: _textColor(context))),
+                content: SizedBox(
+                  width: 600,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+
+                        Text('Store Logo', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () async {
+                            final ImagePicker picker = ImagePicker();
+                            final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                            if (image != null) {
+                              final bytes = await image.readAsBytes();
+                              setStateDialog(() {
+                                selectedImageBytes = bytes;
+                                selectedImageExt = image.name.split('.').last;
+                              });
+                            }
+                          },
+                          child: Container(
+                            height: 140, width: double.infinity,
+                            decoration: BoxDecoration(color: _isDark(context) ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: _borderColor(context), style: BorderStyle.solid)),
+                            child: selectedImageBytes != null
+                                ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(selectedImageBytes!, fit: BoxFit.cover, width: double.infinity)),
+                                Positioned(bottom: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)), child: Text('Change Logo', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))))
+                              ],
+                            )
+                                : (isEditing && existingStore['logo_url'] != null && existingStore['logo_url'].toString().isNotEmpty)
+                                ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(existingStore['logo_url'], fit: BoxFit.cover, width: double.infinity)),
+                                Positioned(bottom: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)), child: Text('Change Logo', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))))
+                              ],
+                            )
+                                : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.cloud_upload_outlined, size: 28, color: AppColors.primary)),
+                                const SizedBox(height: 12),
+                                Text('Click to select a logo', style: GoogleFonts.inter(color: _textColor(context), fontSize: 14, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        Row(children: [
+                          Expanded(child: _textField('Store Name *', nameCtrl, hint: 'e.g. Dhanmondi Hub')),
+                          const SizedBox(width: 16),
+                          Expanded(child: _textField('City *', cityCtrl, hint: 'e.g. Dhaka')),
+                        ]),
+                        const SizedBox(height: 16),
+                        Row(children: [
+                          Expanded(flex: 2, child: _textField('Full Address *', addressCtrl, hint: 'Full street address')),
+                          const SizedBox(width: 16),
+                          Expanded(flex: 1, child: _textField('Phone Number', phoneCtrl, hint: '+880...')),
+                        ]),
+                        const SizedBox(height: 16),
+                        Row(children: [
+                          Expanded(child: _textField('Distance / Coverage (km)', distanceCtrl, hint: 'e.g. 5.0')),
+                          const SizedBox(width: 16),
+                          Expanded(child: _textField('Latitude', latCtrl, hint: 'e.g. 23.8103')),
+                          const SizedBox(width: 16),
+                          Expanded(child: _textField('Longitude', lngCtrl, hint: 'e.g. 90.4125')),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(dialogCtx), child: Text('Cancel', style: GoogleFonts.inter(color: _subtextColor(context), fontWeight: FontWeight.bold))),
+                  ElevatedButton(
+                    onPressed: isSubmitting ? null : () async {
+                      if (nameCtrl.text.isEmpty || addressCtrl.text.isEmpty) {
+                        _showToast('Store Name and Address are required', AppColors.warning);
+                        return;
+                      }
+
+                      setStateDialog(() => isSubmitting = true);
+
+                      try {
+                        String? finalImageUrl = isEditing ? existingStore['logo_url'] : null;
+
+                        if (selectedImageBytes != null) {
+                          final timestamp = DateTime.now().millisecondsSinceEpoch;
+                          final filePath = 'store_$timestamp.$selectedImageExt';
+
+                          await Supabase.instance.client.storage.from('store-images').uploadBinary(filePath, selectedImageBytes!);
+                          finalImageUrl = Supabase.instance.client.storage.from('store-images').getPublicUrl(filePath);
+                        }
+
+                        final payload = {
+                          'name': nameCtrl.text.trim(),
+                          'address': addressCtrl.text.trim(),
+                          'city': cityCtrl.text.trim().isNotEmpty ? cityCtrl.text.trim() : null,
+                          'phone': phoneCtrl.text.trim().isNotEmpty ? phoneCtrl.text.trim() : null,
+                          'distance_km': double.tryParse(distanceCtrl.text.trim()),
+                          'latitude': double.tryParse(latCtrl.text.trim()),
+                          'longitude': double.tryParse(lngCtrl.text.trim()),
+                          'logo_url': finalImageUrl,
+                        };
+
+                        if (isEditing) {
+                          await Supabase.instance.client.from('stores').update(payload).eq('id', existingStore['id']);
+                        } else {
+                          await Supabase.instance.client.from('stores').insert(payload);
+                        }
+
+                        if (mounted) {
+                          Navigator.pop(dialogCtx);
+                          _loadStores();
+                          _showToast(isEditing ? 'Store updated successfully' : 'Store added successfully', AppColors.success);
+                        }
+                      } catch (e) {
+                        _showToast('Error: $e', AppColors.error);
+                        setStateDialog(() => isSubmitting = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                    child: isSubmitting
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : Text(isEditing ? 'Update Store' : 'Save Store', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                  )
+                ],
+              );
+            }
+        )
+    );
+  }
+
+  // ─── SERVICES TAB ────────────────────────────────────────────────────────────
   Widget _servicesTab() {
     final available = _servicesList.where((s) => (s['is_active'] ?? true) == true).toList();
     final unavailable = _servicesList.where((s) => (s['is_active'] ?? true) == false).toList();
@@ -749,10 +1058,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // ─── BUSINESS TAB ────────────────────────────────────────────────────────────
   Widget _businessTab() {
     return _sectionCard(
         title: 'Business Settings',
-        icon: Icons.storefront_outlined,
+        icon: Icons.business_center_outlined,
         iconColor: AppColors.warning,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
