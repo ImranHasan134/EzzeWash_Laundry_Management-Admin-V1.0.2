@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:math';
+import 'dart:math' as math;
+import 'dart:ui';
 import '../../core/theme/color/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../main.dart';
@@ -15,7 +16,8 @@ import 'admin_settings.dart';
 // --- DYNAMIC THEME HELPERS ---
 bool _isDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
 Color _bgColor(BuildContext context) => _isDark(context) ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-Color _surfaceColor(BuildContext context) => _isDark(context) ? const Color(0xFF1E293B) : Colors.white;
+// Slight transparency for the main sidebar/header background to let bubbles peek through
+Color _surfaceColor(BuildContext context) => _isDark(context) ? const Color(0xFF1E293B).withOpacity(0.9) : Colors.white.withOpacity(0.9);
 Color _textColor(BuildContext context) => _isDark(context) ? const Color(0xFFF8FAFC) : const Color(0xFF1E293B);
 Color _subtextColor(BuildContext context) => _isDark(context) ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 Color _borderColor(BuildContext context) => _isDark(context) ? const Color(0xFF475569) : const Color(0xFFE2E8F0);
@@ -25,7 +27,7 @@ class DashboardScreen extends StatefulWidget {
   @override State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   final GlobalKey<OrderScreenState> _orderKey = GlobalKey<OrderScreenState>();
 
@@ -34,10 +36,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _managerStoreId;
   String? _managerStoreName;
 
+  // Background Animation Controller
+  late AnimationController _floatCtrl;
+
   @override
   void initState() {
     super.initState();
     _initRoleAndPages();
+
+    // Floating Background Bubbles Animation (1.5x speed)
+    _floatCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 16666))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _floatCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _initRoleAndPages() async {
@@ -63,6 +77,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
     if (mounted) setState(() => _isLoadingRole = false);
+  }
+
+  Widget _buildBubble(double size, Color color, double opacity) {
+    return Container(
+      width: size, height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(opacity)),
+    );
   }
 
   @override
@@ -96,25 +117,86 @@ class _DashboardScreenState extends State<DashboardScreen> {
       SettingsScreen(isSuperAdmin: _isSuperAdmin, managerStoreId: _managerStoreId),
     ];
 
+    final isDark = _isDark(context);
+    final sw = MediaQuery.of(context).size.width;
+    final sh = MediaQuery.of(context).size.height;
+
     return Scaffold(
-      backgroundColor: _bgColor(context),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final collapsed = constraints.maxWidth < 1100;
-          return Row(children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: collapsed ? 80 : 260,
-              decoration: BoxDecoration(color: _surfaceColor(context), border: Border(right: BorderSide(color: _borderColor(context), width: 1.5))),
-              child: _Sidebar(
-                collapsed: collapsed,
-                selectedIndex: _selectedIndex,
-                onItemSelected: (i) => setState(() => _selectedIndex = i),
+      backgroundColor: Colors.transparent, // Let the stack background show
+      body: Stack(
+        children: [
+          // 1. Base Gradient Background
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? [const Color(0xFF0F172A), const Color(0xFF1E1B4B)]
+                    : [const Color(0xFFDDE4FF), const Color(0xFFF8FAFC)],
               ),
             ),
-            Expanded(child: pages[_selectedIndex]),
-          ]);
-        },
+          ),
+
+          // 2. Animated Floating Bubbles
+          AnimatedBuilder(
+            animation: _floatCtrl,
+            builder: (context, child) {
+              final t = _floatCtrl.value * 2 * math.pi;
+              final opacity = isDark ? 0.08 : 0.15;
+
+              return Stack(
+                children: [
+                  Positioned(
+                    top: -100 + 60 * math.sin(t),
+                    left: -50 + 60 * math.cos(t),
+                    child: _buildBubble(sw * 0.35, AppColors.primary, opacity),
+                  ),
+                  Positioned(
+                    bottom: -150 + 80 * math.cos(t + math.pi / 4),
+                    right: -100 + 80 * math.sin(t + math.pi / 4),
+                    child: _buildBubble(sw * 0.45, const Color(0xFF8B5CF6), opacity),
+                  ),
+                  Positioned(
+                    top: sh * 0.4 + 50 * math.sin(t + math.pi),
+                    left: sw * 0.1 + 50 * math.cos(t + math.pi),
+                    child: _buildBubble(sw * 0.15, const Color(0xFF3B82F6), opacity),
+                  ),
+                  Positioned(
+                    bottom: sh * 0.15 + 40 * math.cos(t + math.pi / 2),
+                    left: sw * 0.3 + 40 * math.sin(t + math.pi / 2),
+                    child: _buildBubble(sw * 0.08, AppColors.primary, opacity),
+                  ),
+                  Positioned(
+                    top: sh * 0.15 + 70 * math.sin(t + math.pi * 1.5),
+                    right: sw * 0.15 + 70 * math.cos(t + math.pi * 1.5),
+                    child: _buildBubble(sw * 0.2, const Color(0xFF6366F1), opacity),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          // 3. Main Dashboard UI Layer
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final collapsed = constraints.maxWidth < 1100;
+              return Row(children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: collapsed ? 80 : 260,
+                  decoration: BoxDecoration(color: _surfaceColor(context), border: Border(right: BorderSide(color: _borderColor(context), width: 1.5))),
+                  child: _Sidebar(
+                    collapsed: collapsed,
+                    selectedIndex: _selectedIndex,
+                    onItemSelected: (i) => setState(() => _selectedIndex = i),
+                  ),
+                ),
+                Expanded(child: pages[_selectedIndex]),
+              ]);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -528,7 +610,7 @@ class _WeeklyRevenueChart extends StatelessWidget {
   final List<double> revenue; final List<String> labels;
   const _WeeklyRevenueChart({required this.revenue, required this.labels});
   @override Widget build(BuildContext context) {
-    final maxRev = revenue.isEmpty ? 1.0 : revenue.reduce(max);
+    final maxRev = revenue.isEmpty ? 1.0 : revenue.reduce(math.max);
     return Container(
       height: 255, padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -558,7 +640,7 @@ class _WeeklyRevenueChart extends StatelessWidget {
                 builder: (context, value, child) {
                   return Container(
                     width: 24,
-                    height: maxBarHeight > 0 ? max(0.0, maxBarHeight * value) : 0.0,
+                    height: maxBarHeight > 0 ? math.max(0.0, maxBarHeight * value) : 0.0,
                     decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: const BorderRadius.vertical(top: Radius.circular(6))),
                   );
                 },
@@ -679,86 +761,100 @@ class _ActionRequiredFeed extends StatelessWidget {
   }
 
   @override Widget build(BuildContext context) {
+    final isDark = _isDark(context);
+
     return Container(
+      // Outer shadow container
       decoration: BoxDecoration(
-          color: _surfaceColor(context),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _borderColor(context), width: 1.5),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(_isDark(context) ? 0.2 : 0.03), blurRadius: 15, offset: const Offset(0, 4))]
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.05), blurRadius: 30, offset: const Offset(0, 10))]
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-        // --- THE TINTED HEADER ---
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          decoration: BoxDecoration(
-            color: _isDark(context) ? Colors.redAccent.withOpacity(0.08) : Colors.red.shade50,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _FlickerText(
-                text: 'Attention Required',
-                style: GoogleFonts.outfit(fontSize: 18, color: _isDark(context) ? Colors.redAccent : Colors.red, fontWeight: FontWeight.bold)
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0), // Glass blur effect
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B).withOpacity(0.6) : Colors.white.withOpacity(0.75),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(isDark ? 0.08 : 0.6), width: 1.5),
             ),
-            GestureDetector(onTap: () => onNavigate(1), child: Text('Manage Orders', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold)))
-          ]),
-        ),
-        Divider(height: 1, color: _borderColor(context)),
-        // -------------------------
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-        if (orders.isEmpty) Padding(padding: const EdgeInsets.all(48), child: Center(child: Text('All caught up! Great job.', style: GoogleFonts.inter(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 15))))
-        else ListView.separated(
-            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: orders.length, separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor(context)), itemBuilder: (context, i) {
-
-          final o = orders[i];
-          final urgency = _getUrgencyInfo(o['created_at'], o['status']);
-          final uColor = urgency['color'] as Color;
-          final isActionable = ['pending', 'confirmed', 'ready'].contains(o['status']);
-          final displayName = o['is_manual'] == true ? (o['manual_customer_name'] ?? 'Manual Customer') : ((o['profiles'] as Map?)?['full_name'] ?? 'Guest');
-
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => onNavigateToStatus(o['status']),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                decoration: BoxDecoration(color: (urgency['isUrgent'] as bool) ? uColor.withOpacity(_isDark(context) ? 0.05 : 0.02) : Colors.transparent),
-                child: Row(children: [
-                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: uColor.withOpacity(0.15), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.warning_amber_rounded, color: uColor, size: 22)),
-                  const SizedBox(width: 16),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('#${o['order_number']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: _textColor(context))),
-                    const SizedBox(height: 4),
-                    Text('$displayName • ${o['status'].toString().toUpperCase().replaceAll('_', ' ')}', style: GoogleFonts.inter(fontSize: 13, color: _subtextColor(context), fontWeight: FontWeight.w600)),
-                  ])),
-                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text(urgency['text'], style: GoogleFonts.inter(color: uColor, fontWeight: FontWeight.bold, fontSize: 13)),
-                    if (isActionable) ...[
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: () => onAction(o['id'], o['status']),
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            minimumSize: const Size(0, 0),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            elevation: 3,
-                            shadowColor: AppColors.primary.withOpacity(0.5)
-                        ),
-                        child: Text(o['status'] == 'pending' ? 'Accept Order' : 'Dispatch', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
-                    ]
-                  ]),
-                  const SizedBox(width: 16),
-                  Icon(Icons.chevron_right_rounded, color: _subtextColor(context)),
+              // --- THE TINTED HEADER ---
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.redAccent.withOpacity(0.1) : Colors.red.shade50.withOpacity(0.7),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  _FlickerText(
+                      text: 'Attention Required',
+                      style: GoogleFonts.outfit(fontSize: 18, color: isDark ? Colors.redAccent : Colors.red, fontWeight: FontWeight.bold)
+                  ),
+                  GestureDetector(onTap: () => onNavigate(1), child: Text('Manage Orders', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold)))
                 ]),
               ),
-            ),
-          );
-        }
-        )
-      ]),
+              Divider(height: 1, color: _borderColor(context)),
+              // -------------------------
+
+              if (orders.isEmpty) Padding(padding: const EdgeInsets.all(48), child: Center(child: Text('All caught up! Great job.', style: GoogleFonts.inter(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 15))))
+              else ListView.separated(
+                  shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: orders.length, separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor(context)), itemBuilder: (context, i) {
+
+                final o = orders[i];
+                final urgency = _getUrgencyInfo(o['created_at'], o['status']);
+                final uColor = urgency['color'] as Color;
+                final isActionable = ['pending', 'confirmed', 'ready'].contains(o['status']);
+                final displayName = o['is_manual'] == true ? (o['manual_customer_name'] ?? 'Manual Customer') : ((o['profiles'] as Map?)?['full_name'] ?? 'Guest');
+
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => onNavigateToStatus(o['status']),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      decoration: BoxDecoration(color: (urgency['isUrgent'] as bool) ? uColor.withOpacity(isDark ? 0.05 : 0.03) : Colors.transparent),
+                      child: Row(children: [
+                        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: uColor.withOpacity(0.15), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.warning_amber_rounded, color: uColor, size: 22)),
+                        const SizedBox(width: 16),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('#${o['order_number']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: _textColor(context))),
+                          const SizedBox(height: 4),
+                          Text('$displayName • ${o['status'].toString().toUpperCase().replaceAll('_', ' ')}', style: GoogleFonts.inter(fontSize: 13, color: _subtextColor(context), fontWeight: FontWeight.w600)),
+                        ])),
+                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                          Text(urgency['text'], style: GoogleFonts.inter(color: uColor, fontWeight: FontWeight.bold, fontSize: 13)),
+                          if (isActionable) ...[
+                            const SizedBox(height: 8),
+                            ElevatedButton(
+                              onPressed: () => onAction(o['id'], o['status']),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  minimumSize: const Size(0, 0),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  elevation: 3,
+                                  shadowColor: AppColors.primary.withOpacity(0.5)
+                              ),
+                              child: Text(o['status'] == 'pending' ? 'Accept Order' : 'Dispatch', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold)),
+                            ),
+                          ]
+                        ]),
+                        const SizedBox(width: 16),
+                        Icon(Icons.chevron_right_rounded, color: _subtextColor(context)),
+                      ]),
+                    ),
+                  ),
+                );
+              }
+              )
+            ]),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -766,54 +862,69 @@ class _ActionRequiredFeed extends StatelessWidget {
 class _LiveRidersPanel extends StatelessWidget {
   final List<Map<String, dynamic>> riders; final ValueChanged<int> onNavigate;
   const _LiveRidersPanel({required this.riders, required this.onNavigate});
+
   @override Widget build(BuildContext context) {
+    final isDark = _isDark(context);
+
     return Container(
+      // Outer shadow container
       decoration: BoxDecoration(
-          color: _surfaceColor(context),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _borderColor(context), width: 1.5),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(_isDark(context) ? 0.2 : 0.03), blurRadius: 15, offset: const Offset(0, 4))]
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.05), blurRadius: 30, offset: const Offset(0, 10))]
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0), // Glass blur effect
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B).withOpacity(0.6) : Colors.white.withOpacity(0.75),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(isDark ? 0.08 : 0.6), width: 1.5),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-        // --- THE TINTED HEADER ---
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          decoration: BoxDecoration(
-            color: _isDark(context) ? Colors.greenAccent.withOpacity(0.08) : Colors.green.shade50,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+              // --- THE TINTED HEADER ---
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.greenAccent.withOpacity(0.1) : Colors.green.shade50.withOpacity(0.7),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  _FlickerText(
+                      text: 'Live Dispatch',
+                      style: GoogleFonts.outfit(fontSize: 18, color: isDark ? Colors.greenAccent : Colors.green, fontWeight: FontWeight.bold)
+                  ),
+                  GestureDetector(onTap: () => onNavigate(2), child: Text('View All', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold)))
+                ]),
+              ),
+              Divider(height: 1, color: _borderColor(context)),
+              // -------------------------
+
+              if (riders.isEmpty) Padding(padding: const EdgeInsets.all(40), child: Center(child: Text('No online riders.', style: GoogleFonts.inter(color: _subtextColor(context)))))
+              else ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: riders.length, separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor(context)), itemBuilder: (context, i) {
+                final r = riders[i];
+                return ListTile(
+                  onTap: () => onNavigate(2),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  leading: CircleAvatar(backgroundColor: AppColors.primary.withOpacity(0.15), backgroundImage: (r['avatar_url'] != null && r['avatar_url'].isNotEmpty) ? NetworkImage(r['avatar_url']) : null, child: (r['avatar_url'] == null || r['avatar_url'].isEmpty) ? Text(r['full_name'][0], style: GoogleFonts.outfit(color: AppColors.primary, fontWeight: FontWeight.bold)) : null),
+                  title: Text(r['full_name'], style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: _textColor(context))),
+                  subtitle: Text(r['vehicle_plate'] ?? 'No Plate', style: GoogleFonts.inter(fontSize: 12, color: _subtextColor(context), fontWeight: FontWeight.w600)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppColors.success.withOpacity(0.15), borderRadius: BorderRadius.circular(20)), child: const Text('READY', style: TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.bold))),
+                      const SizedBox(width: 8),
+                      Icon(Icons.chevron_right_rounded, color: _subtextColor(context)),
+                    ],
+                  ),
+                );
+              })
+            ]),
           ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _FlickerText(
-                text: 'Live Dispatch',
-                style: GoogleFonts.outfit(fontSize: 18, color: _isDark(context) ? Colors.greenAccent : Colors.green, fontWeight: FontWeight.bold)
-            ),
-            GestureDetector(onTap: () => onNavigate(2), child: Text('View All', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold)))
-          ]),
         ),
-        Divider(height: 1, color: _borderColor(context)),
-        // -------------------------
-
-        if (riders.isEmpty) Padding(padding: const EdgeInsets.all(40), child: Center(child: Text('No online riders.', style: GoogleFonts.inter(color: _subtextColor(context)))))
-        else ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: riders.length, separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor(context)), itemBuilder: (context, i) {
-          final r = riders[i];
-          return ListTile(
-            onTap: () => onNavigate(2),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            leading: CircleAvatar(backgroundColor: AppColors.primary.withOpacity(0.15), backgroundImage: (r['avatar_url'] != null && r['avatar_url'].isNotEmpty) ? NetworkImage(r['avatar_url']) : null, child: (r['avatar_url'] == null || r['avatar_url'].isEmpty) ? Text(r['full_name'][0], style: GoogleFonts.outfit(color: AppColors.primary, fontWeight: FontWeight.bold)) : null),
-            title: Text(r['full_name'], style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: _textColor(context))),
-            subtitle: Text(r['vehicle_plate'] ?? 'No Plate', style: GoogleFonts.inter(fontSize: 12, color: _subtextColor(context), fontWeight: FontWeight.w600)),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppColors.success.withOpacity(0.15), borderRadius: BorderRadius.circular(20)), child: const Text('READY', style: TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.bold))),
-                const SizedBox(width: 8),
-                Icon(Icons.chevron_right_rounded, color: _subtextColor(context)),
-              ],
-            ),
-          );
-        })
-      ]),
+      ),
     );
   }
 }

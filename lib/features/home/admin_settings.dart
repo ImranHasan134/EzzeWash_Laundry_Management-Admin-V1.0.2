@@ -4,16 +4,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import 'dart:ui'; // For glassmorphism blur
 import '../../core/theme/color/app_colors.dart';
 import '../../main.dart';
 
-// --- DYNAMIC THEME HELPERS ---
+// --- DYNAMIC THEME HELPERS (Glassmorphism) ---
 bool _isDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
-Color _bgColor(BuildContext context) => _isDark(context) ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-Color _surfaceColor(BuildContext context) => _isDark(context) ? const Color(0xFF1E293B) : Colors.white;
+Color _surfaceColor(BuildContext context) => _isDark(context) ? const Color(0xFF1E293B).withOpacity(0.85) : Colors.white.withOpacity(0.85);
 Color _textColor(BuildContext context) => _isDark(context) ? const Color(0xFFF8FAFC) : const Color(0xFF1E293B);
 Color _subtextColor(BuildContext context) => _isDark(context) ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-Color _borderColor(BuildContext context) => _isDark(context) ? const Color(0xFF475569) : const Color(0xFFE2E8F0);
+Color _borderColor(BuildContext context) => _isDark(context) ? const Color(0xFF475569).withOpacity(0.5) : const Color(0xFFE2E8F0).withOpacity(0.6);
+Color _inputFillColor(BuildContext context) => _isDark(context) ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFFF8FAFC).withOpacity(0.5);
 
 class SettingsScreen extends StatefulWidget {
   final bool isSuperAdmin;
@@ -207,8 +208,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                    color: isExpanded ? const Color(0xFF4F46E5) : (_isDark(context) ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
-                    shape: BoxShape.circle
+                    color: isExpanded ? const Color(0xFF4F46E5) : _inputFillColor(context),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _borderColor(context))
                 ),
                 child: Icon(icon, color: isExpanded ? Colors.white : _subtextColor(context), size: 30),
               ),
@@ -264,7 +266,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return Center(
         child: Container(
           padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(color: _isDark(context) ? const Color(0xFF334155).withOpacity(0.5) : const Color(0xFFE2E8F0).withOpacity(0.7), borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(color: _inputFillColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: _borderColor(context))),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -289,6 +291,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       decoration: BoxDecoration(
                           color: sel ? _surfaceColor(context) : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: sel ? _borderColor(context) : Colors.transparent),
                           boxShadow: sel ? [BoxShadow(color: Colors.black.withOpacity(_isDark(context) ? 0.2 : 0.05), blurRadius: 8, offset: const Offset(0, 2))] : []
                       ),
                       child: Row(children: [
@@ -306,18 +309,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     return Container(
-      color: _bgColor(context),
+      color: Colors.transparent, // Let Dashboard bubbles show through
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Static Top Header
-        Container(
-          height: 72, padding: const EdgeInsets.symmetric(horizontal: 32),
-          decoration: BoxDecoration(color: _surfaceColor(context), border: Border(bottom: BorderSide(color: _borderColor(context), width: 1.5))),
-          child: Row(children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text('Settings', style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: _textColor(context))),
-              Text('Manage your account, team, stores, and business preferences', style: GoogleFonts.inter(fontSize: 14, color: _subtextColor(context))),
-            ]),
-          ]),
+        // Static Frosted Top Header
+        ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              height: 72, padding: const EdgeInsets.symmetric(horizontal: 32),
+              decoration: BoxDecoration(color: _surfaceColor(context), border: Border(bottom: BorderSide(color: _borderColor(context), width: 1.5))),
+              child: Row(children: [
+                Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text('Settings', style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: _textColor(context))),
+                  Text('Manage your account, team, stores, and business preferences', style: GoogleFonts.inter(fontSize: 14, color: _subtextColor(context))),
+                ]),
+              ]),
+            ),
+          ),
         ),
 
         // Scrollable Body Content
@@ -343,7 +351,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ]
                   ),
 
-                  // 2. ANIMATED SUB-TABS ROW (Only appears when a card is clicked)
+                  // 2. ANIMATED SUB-TABS ROW
                   AnimatedSize(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
@@ -358,7 +366,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : const SizedBox(width: double.infinity, height: 0),
                   ),
 
-                  // 3. ACTUAL TAB CONTENT (Beautifully animated when a specific sub-tab is clicked)
+                  // 3. ACTUAL TAB CONTENT
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 400),
                     switchInCurve: Curves.easeOutCubic,
@@ -368,7 +376,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         opacity: animation,
                         child: SlideTransition(
                           position: Tween<Offset>(
-                            begin: const Offset(0.0, 0.05), // Subtle slide up from bottom
+                            begin: const Offset(0.0, 0.05),
                             end: Offset.zero,
                           ).animate(animation),
                           child: child,
@@ -530,7 +538,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (_isInviting) ...[
             Container(
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(color: _isDark(context) ? const Color(0xFF334155).withOpacity(0.3) : const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(16), border: Border.all(color: _borderColor(context))),
+              decoration: BoxDecoration(color: _inputFillColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: _borderColor(context))),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -542,7 +550,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Expanded(flex: 1, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('Role', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: _textColor(context))),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(value: _inviteRole, icon: const Icon(Icons.keyboard_arrow_down, size: 20), items: ['Manager'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))))).toList(), onChanged: (v) => setState(() => _inviteRole = v!), decoration: _inputDeco(), dropdownColor: _surfaceColor(context)),
+                      DropdownButtonFormField<String>(dropdownColor: _surfaceColor(context), value: _inviteRole, icon: const Icon(Icons.keyboard_arrow_down, size: 20), items: ['Manager'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))))).toList(), onChanged: (v) => setState(() => _inviteRole = v!), decoration: _inputDeco()),
                     ])),
                   ]),
                   const SizedBox(height: 16),
@@ -552,12 +560,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                           value: _inviteStoreId,
+                          dropdownColor: _surfaceColor(context),
                           hint: Text('Select Store', style: GoogleFonts.inter(fontSize: 14, color: _subtextColor(context))),
                           icon: const Icon(Icons.storefront_outlined, size: 20),
                           items: _storesList.map((s) => DropdownMenuItem(value: s['id'] as String, child: Text('${s['name']} (${s['city']})', style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))))).toList(),
                           onChanged: (v) => setState(() => _inviteStoreId = v),
-                          decoration: _inputDeco(),
-                          dropdownColor: _surfaceColor(context)
+                          decoration: _inputDeco()
                       ),
                     ])),
                     const SizedBox(width: 16),
@@ -679,32 +687,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showCustomerOrderHistory(Map<String, dynamic> customer) {
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-        backgroundColor: _surfaceColor(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: _borderColor(context))),
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Order History: ${customer['full_name']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: _textColor(context))),
-            IconButton(icon: Icon(Icons.close, color: _subtextColor(context)), onPressed: () => Navigator.pop(ctx)),
-          ],
-        ),
-        content: SizedBox(width: 500, height: 400, child: FutureBuilder(future: Supabase.instance.client.from('orders').select().eq('user_id', customer['id']).order('created_at', ascending: false), builder: (c, AsyncSnapshot<List<dynamic>> snap) {
-          if(!snap.hasData) return const Center(child: CircularProgressIndicator());
-          if(snap.data!.isEmpty) return Center(child: Text('No orders found for this user.', style: GoogleFonts.inter(color: _subtextColor(context))));
-          return ListView.separated(
-              itemCount: snap.data!.length,
-              separatorBuilder: (_, __) => Divider(color: _borderColor(context)),
-              itemBuilder: (c, i) {
-                final o = snap.data![i];
-                return ListTile(
-                    title: Text('#${o['order_number']}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textColor(context))),
-                    subtitle: Text(o['created_at'].toString().split('T')[0], style: GoogleFonts.inter(color: _subtextColor(context))),
-                    trailing: Text('৳${o['total_price']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.primary))
-                );
-              }
-          );
-        }))
+    showDialog(context: context, builder: (ctx) => BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: AlertDialog(
+          backgroundColor: _surfaceColor(context),
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: _borderColor(context))),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Order History: ${customer['full_name']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: _textColor(context))),
+              IconButton(icon: Icon(Icons.close, color: _subtextColor(context)), onPressed: () => Navigator.pop(ctx)),
+            ],
+          ),
+          content: SizedBox(width: 500, height: 400, child: FutureBuilder(future: Supabase.instance.client.from('orders').select().eq('user_id', customer['id']).order('created_at', ascending: false), builder: (c, AsyncSnapshot<List<dynamic>> snap) {
+            if(!snap.hasData) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+            if(snap.data!.isEmpty) return Center(child: Text('No orders found for this user.', style: GoogleFonts.inter(color: _subtextColor(context))));
+            return ListView.separated(
+                itemCount: snap.data!.length,
+                separatorBuilder: (_, __) => Divider(color: _borderColor(context)),
+                itemBuilder: (c, i) {
+                  final o = snap.data![i];
+                  return ListTile(
+                      title: Text('#${o['order_number']}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textColor(context))),
+                      subtitle: Text(o['created_at'].toString().split('T')[0], style: GoogleFonts.inter(color: _subtextColor(context))),
+                      trailing: Text('৳${o['total_price']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.primary))
+                  );
+                }
+            );
+          }))
+      ),
     ));
   }
 
@@ -784,7 +796,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // Custom Tabs
               Container(
                 padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: _isDark(context) ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10), border: Border.all(color: _borderColor(context))),
+                decoration: BoxDecoration(color: _inputFillColor(context), borderRadius: BorderRadius.circular(10), border: Border.all(color: _borderColor(context))),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -799,13 +811,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(color: _bgColor(context), borderRadius: BorderRadius.circular(10), border: Border.all(color: _borderColor(context))),
+                  decoration: BoxDecoration(color: _surfaceColor(context), borderRadius: BorderRadius.circular(10), border: Border.all(color: _borderColor(context))),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _promoHistorySort,
+                      dropdownColor: _surfaceColor(context),
                       icon: Icon(Icons.sort, color: _subtextColor(context), size: 18),
                       style: GoogleFonts.inter(color: _textColor(context), fontSize: 13, fontWeight: FontWeight.w600),
-                      dropdownColor: _surfaceColor(context),
                       items: ['Newest', 'Oldest'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                       onChanged: (v) => setState(() => _promoHistorySort = v!),
                     ),
@@ -834,7 +846,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // Style based on active/history status
               final isHistoryMode = _showingPromoHistory;
               final Color accentColor = isHistoryMode ? _subtextColor(context) : const Color(0xFF8B5CF6);
-              final Color boxBg = isHistoryMode ? (_isDark(context) ? const Color(0xFF0F172A).withOpacity(0.5) : Colors.grey.shade50) : _bgColor(context);
+              final Color boxBg = isHistoryMode ? _inputFillColor(context) : Colors.transparent;
               final Color iconBg = isHistoryMode ? Colors.grey.withOpacity(0.1) : const Color(0xFF8B5CF6).withOpacity(0.1);
 
               return Container(
@@ -849,7 +861,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     // Banner Thumbnail or Default Icon
                     Container(
                       width: 72, height: 72,
-                      decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: isHistoryMode ? Colors.grey.shade400 : const Color(0xFF8B5CF6))),
+                      decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: isHistoryMode ? Colors.grey.withOpacity(0.3) : const Color(0xFF8B5CF6))),
                       child: p['banner_url'] != null && p['banner_url'].toString().isNotEmpty
                           ? ClipRRect(borderRadius: BorderRadius.circular(12), child: ColorFiltered(
                           colorFilter: isHistoryMode ? const ColorFilter.matrix([0.2126,0.7152,0.0722,0,0, 0.2126,0.7152,0.0722,0,0, 0.2126,0.7152,0.0722,0,0, 0,0,0,1,0]) : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
@@ -935,149 +947,153 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (innerContext, setStateDialog) {
-          return AlertDialog(
-            backgroundColor: _surfaceColor(context),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: _borderColor(context))),
-            title: Text(isEditing ? 'Edit Campaign' : 'Launch Campaign', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: _textColor(context))),
-            content: SizedBox(width: 600, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          return BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: AlertDialog(
+              backgroundColor: _surfaceColor(context),
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: _borderColor(context))),
+              title: Text(isEditing ? 'Edit Campaign' : 'Launch Campaign', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: _textColor(context))),
+              content: SizedBox(width: 600, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-              // Image Picker
-              Text('Promo Banner Image', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () async {
-                  final ImagePicker picker = ImagePicker();
-                  final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-                  if (image != null) {
-                    final bytes = await image.readAsBytes();
-                    setStateDialog(() {
-                      selectedImageBytes = bytes;
-                      selectedImageExt = image.name.split('.').last;
-                    });
-                  }
-                },
-                child: Container(
-                  height: 140, width: double.infinity,
-                  decoration: BoxDecoration(color: _isDark(context) ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: _borderColor(context), style: BorderStyle.solid)),
-                  child: selectedImageBytes != null
-                      ? Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(selectedImageBytes!, fit: BoxFit.cover, width: double.infinity)),
-                      Positioned(bottom: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)), child: Text('Change Banner', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))))
-                    ],
-                  ) : (isEditing && existingPromo['banner_url'] != null && existingPromo['banner_url'].toString().isNotEmpty)
-                      ? Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(existingPromo['banner_url'], fit: BoxFit.cover, width: double.infinity)),
-                      Positioned(bottom: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)), child: Text('Change Banner', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))))
-                    ],
-                  ) : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFF8B5CF6).withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.add_photo_alternate_outlined, size: 28, color: Color(0xFF8B5CF6))),
-                      const SizedBox(height: 12),
-                      Text('Click to upload promo banner', style: GoogleFonts.inter(color: _textColor(context), fontSize: 14, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              _textField('Campaign Title (e.g. Rainy Offer) *', titleCtrl, hint: 'Notification headline'),
-              const SizedBox(height: 16),
-
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Target Service', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
+                // Image Picker
+                Text('Promo Banner Image', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String?>(value: selectedServiceId, items: [const DropdownMenuItem(value: null, child: Text('All Services (Global Offer)')), ..._servicesList.map((s) => DropdownMenuItem(value: s['id'].toString(), child: Text(s['title'] ?? '')))], onChanged: (v) => setStateDialog(() => selectedServiceId = v), decoration: _inputDeco(), dropdownColor: _surfaceColor(context)),
-              ]),
-              const SizedBox(height: 16),
-
-              Row(children: [Expanded(child: _textField('Promo Code *', codeCtrl, hint: 'e.g. RAIN40')), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Type', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))), const SizedBox(height: 8), DropdownButtonFormField<String>(value: discountType, items: const [DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)')), DropdownMenuItem(value: 'fixed', child: Text('Fixed (৳)'))], onChanged: (v) => setStateDialog(() => discountType = v!), decoration: _inputDeco(), dropdownColor: _surfaceColor(context))]))]),
-              const SizedBox(height: 16),
-              _textField('Detailed Description *', descCtrl, hint: 'Details for user'),
-              const SizedBox(height: 16),
-
-              // Value and Max Disc Row
-              Row(children: [Expanded(child: _textField('Value *', discountValCtrl, hint: 'e.g. 40')), const SizedBox(width: 16), Expanded(child: _textField('Max Disc (৳)', maxDiscountCtrl, hint: 'Cap limit'))]),
-              const SizedBox(height: 16),
-
-              // Min Order and Usage Limit Row
-              Row(children: [Expanded(child: _textField('Min Order (৳)', minOrderCtrl, hint: 'e.g. 50')), const SizedBox(width: 16), Expanded(child: _textField('Total Usage Limit', usageLimitCtrl, hint: 'e.g. 10 (Optional)'))]),
-              const SizedBox(height: 16),
-
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Expiry Date', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))), const SizedBox(height: 8), InkWell(onTap: () async { final p = await showDatePicker(context: context, initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 7)), firstDate: DateTime.now(), lastDate: DateTime(2030)); if (p != null) setStateDialog(() => selectedDate = p); }, child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: _bgColor(context), borderRadius: BorderRadius.circular(12), border: Border.all(color: _borderColor(context))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(selectedDate == null ? 'No Expiry' : '${selectedDate!.day}-${selectedDate!.month}-${selectedDate!.year}', style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))), Icon(Icons.calendar_today, size: 16, color: _subtextColor(context))])))]),
-              const SizedBox(height: 24),
-
-              // Informative container explaining that DB handles notifications
-              if (!isEditing)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: const Color(0xFF8B5CF6).withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF8B5CF6).withOpacity(0.3))),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.bolt, color: Color(0xFF8B5CF6), size: 20),
-                      const SizedBox(width: 16),
-                      Expanded(child: Text('Push notifications are automatically triggered by your database when a new promo is launched.', style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 13, color: _textColor(context)))),
-                    ],
+                GestureDetector(
+                  onTap: () async {
+                    final ImagePicker picker = ImagePicker();
+                    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                    if (image != null) {
+                      final bytes = await image.readAsBytes();
+                      setStateDialog(() {
+                        selectedImageBytes = bytes;
+                        selectedImageExt = image.name.split('.').last;
+                      });
+                    }
+                  },
+                  child: Container(
+                    height: 140, width: double.infinity,
+                    decoration: BoxDecoration(color: _inputFillColor(context), borderRadius: BorderRadius.circular(12), border: Border.all(color: _borderColor(context), style: BorderStyle.solid)),
+                    child: selectedImageBytes != null
+                        ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(selectedImageBytes!, fit: BoxFit.cover, width: double.infinity)),
+                        Positioned(bottom: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)), child: Text('Change Banner', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))))
+                      ],
+                    ) : (isEditing && existingPromo['banner_url'] != null && existingPromo['banner_url'].toString().isNotEmpty)
+                        ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(existingPromo['banner_url'], fit: BoxFit.cover, width: double.infinity)),
+                        Positioned(bottom: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)), child: Text('Change Banner', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))))
+                      ],
+                    ) : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFF8B5CF6).withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.add_photo_alternate_outlined, size: 28, color: Color(0xFF8B5CF6))),
+                        const SizedBox(height: 12),
+                        Text('Click to upload promo banner', style: GoogleFonts.inter(color: _textColor(context), fontSize: 14, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
                   ),
                 ),
-            ]))),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogCtx), child: Text('Cancel', style: GoogleFonts.inter(color: _subtextColor(context)))),
-              ElevatedButton(
-                onPressed: isSubmitting ? null : () async {
-                  if (titleCtrl.text.isEmpty || codeCtrl.text.isEmpty || discountValCtrl.text.isEmpty) {
-                    _showToast('Fill required fields', AppColors.warning);
-                    return;
-                  }
+                const SizedBox(height: 20),
 
-                  setStateDialog(() => isSubmitting = true);
+                _textField('Campaign Title (e.g. Rainy Offer) *', titleCtrl, hint: 'Notification headline'),
+                const SizedBox(height: 16),
 
-                  try {
-                    String? finalImageUrl = isEditing ? existingPromo['banner_url'] : null;
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Target Service', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String?>(dropdownColor: _surfaceColor(context), value: selectedServiceId, items: [DropdownMenuItem(value: null, child: Text('All Services (Global Offer)', style: TextStyle(color: _textColor(context)))), ..._servicesList.map((s) => DropdownMenuItem(value: s['id'].toString(), child: Text(s['title'] ?? '', style: TextStyle(color: _textColor(context)))))], onChanged: (v) => setStateDialog(() => selectedServiceId = v), decoration: _inputDeco()),
+                ]),
+                const SizedBox(height: 16),
 
-                    if (selectedImageBytes != null) {
-                      final timestamp = DateTime.now().millisecondsSinceEpoch;
-                      final filePath = 'promo_$timestamp.$selectedImageExt';
-                      await Supabase.instance.client.storage.from('promo_banner').uploadBinary(filePath, selectedImageBytes!);
-                      finalImageUrl = Supabase.instance.client.storage.from('promo_banner').getPublicUrl(filePath);
+                Row(children: [Expanded(child: _textField('Promo Code *', codeCtrl, hint: 'e.g. RAIN40')), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Type', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))), const SizedBox(height: 8), DropdownButtonFormField<String>(dropdownColor: _surfaceColor(context), value: discountType, items: [DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)', style: TextStyle(color: _textColor(context)))), DropdownMenuItem(value: 'fixed', child: Text('Fixed (৳)', style: TextStyle(color: _textColor(context))))], onChanged: (v) => setStateDialog(() => discountType = v!), decoration: _inputDeco())]))]),
+                const SizedBox(height: 16),
+                _textField('Detailed Description *', descCtrl, hint: 'Details for user'),
+                const SizedBox(height: 16),
+
+                // Value and Max Disc Row
+                Row(children: [Expanded(child: _textField('Value *', discountValCtrl, hint: 'e.g. 40')), const SizedBox(width: 16), Expanded(child: _textField('Max Disc (৳)', maxDiscountCtrl, hint: 'Cap limit'))]),
+                const SizedBox(height: 16),
+
+                // Min Order and Usage Limit Row
+                Row(children: [Expanded(child: _textField('Min Order (৳)', minOrderCtrl, hint: 'e.g. 50')), const SizedBox(width: 16), Expanded(child: _textField('Total Usage Limit', usageLimitCtrl, hint: 'e.g. 10 (Optional)'))]),
+                const SizedBox(height: 16),
+
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Expiry Date', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))), const SizedBox(height: 8), InkWell(onTap: () async { final p = await showDatePicker(context: context, initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 7)), firstDate: DateTime.now(), lastDate: DateTime(2030)); if (p != null) setStateDialog(() => selectedDate = p); }, child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: _inputFillColor(context), borderRadius: BorderRadius.circular(12), border: Border.all(color: _borderColor(context))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(selectedDate == null ? 'No Expiry' : '${selectedDate!.day}-${selectedDate!.month}-${selectedDate!.year}', style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))), Icon(Icons.calendar_today, size: 16, color: _subtextColor(context))])))]),
+                const SizedBox(height: 24),
+
+                // Informative container explaining that DB handles notifications
+                if (!isEditing)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: const Color(0xFF8B5CF6).withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF8B5CF6).withOpacity(0.3))),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.bolt, color: Color(0xFF8B5CF6), size: 20),
+                        const SizedBox(width: 16),
+                        Expanded(child: Text('Push notifications are automatically triggered by your database when a new promo is launched.', style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 13, color: _textColor(context)))),
+                      ],
+                    ),
+                  ),
+              ]))),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogCtx), child: Text('Cancel', style: GoogleFonts.inter(color: _subtextColor(context)))),
+                ElevatedButton(
+                  onPressed: isSubmitting ? null : () async {
+                    if (titleCtrl.text.isEmpty || codeCtrl.text.isEmpty || discountValCtrl.text.isEmpty) {
+                      _showToast('Fill required fields', AppColors.warning);
+                      return;
                     }
 
-                    final payload = {
-                      'title': titleCtrl.text.trim(), // Title goes into the database here
-                      'code': codeCtrl.text.trim().toUpperCase(),
-                      'description': descCtrl.text.trim(),
-                      'discount_type': discountType,
-                      'discount_value': double.parse(discountValCtrl.text.trim()),
-                      'max_discount_amount': double.tryParse(maxDiscountCtrl.text.trim()),
-                      'min_order_amount': double.tryParse(minOrderCtrl.text.trim()) ?? 0,
-                      'usage_limit': int.tryParse(usageLimitCtrl.text.trim()),
-                      'valid_until': selectedDate?.toIso8601String(),
-                      'target_service_id': selectedServiceId,
-                      'banner_url': finalImageUrl,
-                      'is_active': true,
-                    };
+                    setStateDialog(() => isSubmitting = true);
 
-                    if (isEditing) {
-                      await Supabase.instance.client.from('promos').update(payload).eq('id', existingPromo['id']);
-                    } else {
-                      await Supabase.instance.client.from('promos').insert(payload);
-                    }
+                    try {
+                      String? finalImageUrl = isEditing ? existingPromo['banner_url'] : null;
 
-                    if (mounted) {
-                      Navigator.pop(dialogCtx);
-                      _loadPromos();
-                      _showToast(isEditing ? 'Promo Updated!' : 'Promo Launched!', AppColors.success);
-                    }
-                  } catch (e) { _showToast('Database Error: $e', AppColors.error); setStateDialog(() => isSubmitting = false); }
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                child: isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(isEditing ? 'Update Promo' : 'Launch Promo', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-              )
-            ],
+                      if (selectedImageBytes != null) {
+                        final timestamp = DateTime.now().millisecondsSinceEpoch;
+                        final filePath = 'promo_$timestamp.$selectedImageExt';
+                        await Supabase.instance.client.storage.from('promo_banner').uploadBinary(filePath, selectedImageBytes!);
+                        finalImageUrl = Supabase.instance.client.storage.from('promo_banner').getPublicUrl(filePath);
+                      }
+
+                      final payload = {
+                        'title': titleCtrl.text.trim(), // Title goes into the database here
+                        'code': codeCtrl.text.trim().toUpperCase(),
+                        'description': descCtrl.text.trim(),
+                        'discount_type': discountType,
+                        'discount_value': double.parse(discountValCtrl.text.trim()),
+                        'max_discount_amount': double.tryParse(maxDiscountCtrl.text.trim()),
+                        'min_order_amount': double.tryParse(minOrderCtrl.text.trim()) ?? 0,
+                        'usage_limit': int.tryParse(usageLimitCtrl.text.trim()),
+                        'valid_until': selectedDate?.toIso8601String(),
+                        'target_service_id': selectedServiceId,
+                        'banner_url': finalImageUrl,
+                        'is_active': true,
+                      };
+
+                      if (isEditing) {
+                        await Supabase.instance.client.from('promos').update(payload).eq('id', existingPromo['id']);
+                      } else {
+                        await Supabase.instance.client.from('promos').insert(payload);
+                      }
+
+                      if (mounted) {
+                        Navigator.pop(dialogCtx);
+                        _loadPromos();
+                        _showToast(isEditing ? 'Promo Updated!' : 'Promo Launched!', AppColors.success);
+                      }
+                    } catch (e) { _showToast('Database Error: $e', AppColors.error); setStateDialog(() => isSubmitting = false); }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  child: isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(isEditing ? 'Update Promo' : 'Launch Promo', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                )
+              ],
+            ),
           );
         },
       ),
@@ -1092,7 +1108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildStoreListCard({required String title, required List<Map<String, dynamic>> stores, required bool isFlickering, required Color themeColor, required Color bgColor}) {
-    return Container(decoration: BoxDecoration(color: _bgColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: _borderColor(context))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: bgColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(15))), child: isFlickering ? _FlickerText(text: title, style: GoogleFonts.outfit(color: themeColor, fontWeight: FontWeight.bold)) : Text(title, style: GoogleFonts.outfit(color: themeColor, fontWeight: FontWeight.bold))), ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: stores.length, separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor(context)), itemBuilder: (ctx, i) { final s = stores[i]; final isActive = s['is_active'] ?? true; return ListTile(leading: CircleAvatar(backgroundImage: s['logo_url'] != null ? NetworkImage(s['logo_url']) : null, child: s['logo_url'] == null ? const Icon(Icons.storefront) : null), title: Text(s['name'] ?? '', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textColor(context))), subtitle: Text(s['address'] ?? '', style: GoogleFonts.inter(color: _subtextColor(context))), trailing: Row(mainAxisSize: MainAxisSize.min, children: [TextButton(onPressed: () => _toggleStoreStatus(s), child: Text(isActive ? 'Make Unavailable' : 'Make Available', style: GoogleFonts.inter(color: isActive ? Colors.orange : Colors.green, fontWeight: FontWeight.bold))), IconButton(icon: const Icon(Icons.edit, color: AppColors.primary), onPressed: () => _showAddOrEditStoreDialog(s))])); })]));
+    return Container(decoration: BoxDecoration(color: _inputFillColor(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: _borderColor(context))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: bgColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(15))), child: isFlickering ? _FlickerText(text: title, style: GoogleFonts.outfit(color: themeColor, fontWeight: FontWeight.bold)) : Text(title, style: GoogleFonts.outfit(color: themeColor, fontWeight: FontWeight.bold))), ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: stores.length, separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor(context)), itemBuilder: (ctx, i) { final s = stores[i]; final isActive = s['is_active'] ?? true; return ListTile(leading: CircleAvatar(backgroundImage: s['logo_url'] != null ? NetworkImage(s['logo_url']) : null, child: s['logo_url'] == null ? const Icon(Icons.storefront) : null), title: Text(s['name'] ?? '', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textColor(context))), subtitle: Text(s['address'] ?? '', style: GoogleFonts.inter(color: _subtextColor(context))), trailing: Row(mainAxisSize: MainAxisSize.min, children: [TextButton(onPressed: () => _toggleStoreStatus(s), child: Text(isActive ? 'Make Unavailable' : 'Make Available', style: GoogleFonts.inter(color: isActive ? Colors.orange : Colors.green, fontWeight: FontWeight.bold))), IconButton(icon: const Icon(Icons.edit, color: AppColors.primary), onPressed: () => _showAddOrEditStoreDialog(s))])); })]));
   }
 
   void _showAddOrEditStoreDialog(Map<String, dynamic>? store) {
@@ -1108,19 +1124,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Uint8List? imgBytes; String? ext; bool sub = false;
 
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (c, setD) {
-      return AlertDialog(backgroundColor: _surfaceColor(context), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: _borderColor(context))), title: Text(isEdit ? 'Edit Store' : 'New Store', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: _textColor(context))), content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        GestureDetector(onTap: () async { final ImagePicker p = ImagePicker(); final XFile? i = await p.pickImage(source: ImageSource.gallery); if (i != null) { final b = await i.readAsBytes(); setD(() { imgBytes = b; ext = i.name.split('.').last; }); } }, child: Center(child: CircleAvatar(radius: 50, backgroundColor: _bgColor(context), backgroundImage: imgBytes != null ? MemoryImage(imgBytes!) : (isEdit && store['logo_url']!=null ? NetworkImage(store['logo_url']) : null) as ImageProvider?, child: imgBytes == null && (!isEdit || store['logo_url'] == null) ? const Icon(Icons.camera_alt, size: 30) : null))),
-        const SizedBox(height: 24),
-        _textField('Store Name *', nameCtrl),
-        const SizedBox(height: 12),
-        _textField('Store Full Address *', addrCtrl),
-        const SizedBox(height: 12),
-        Row(children: [Expanded(child: _textField('City', cityCtrl)), const SizedBox(width: 12), Expanded(child: _textField('Contact Number', phoneCtrl))]),
-        const SizedBox(height: 12),
-        _textField('Range (km)', distCtrl),
-        const SizedBox(height: 12),
-        Row(children: [Expanded(child: _textField('Latitude', latCtrl)), const SizedBox(width: 12), Expanded(child: _textField('Longitude', lngCtrl))]),
-      ]))), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: GoogleFonts.inter(color: _subtextColor(context)))), ElevatedButton(onPressed: sub ? null : () async { setD(()=>sub=true); try { String? url = isEdit?store['logo_url']:null; if(imgBytes!=null){ final p = 'store_${DateTime.now().millisecondsSinceEpoch}.$ext'; await Supabase.instance.client.storage.from('store-images').uploadBinary(p, imgBytes!); url = Supabase.instance.client.storage.from('store-images').getPublicUrl(p); } final d = {'name':nameCtrl.text, 'address':addrCtrl.text, 'city':cityCtrl.text, 'phone':phoneCtrl.text, 'distance_km': double.tryParse(distCtrl.text), 'latitude': double.tryParse(latCtrl.text), 'longitude': double.tryParse(lngCtrl.text), 'logo_url':url}; if(isEdit) await Supabase.instance.client.from('stores').update(d).eq('id', store['id']); else await Supabase.instance.client.from('stores').insert(d); Navigator.pop(ctx); _loadStores(); } catch(e){_showToast('$e', Colors.red); setD(()=>sub=false);} }, style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: Text(isEdit?'Update':'Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)))]);
+      return BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: AlertDialog(backgroundColor: _surfaceColor(context), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: _borderColor(context))), title: Text(isEdit ? 'Edit Store' : 'New Store', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: _textColor(context))), content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          GestureDetector(onTap: () async { final ImagePicker p = ImagePicker(); final XFile? i = await p.pickImage(source: ImageSource.gallery); if (i != null) { final b = await i.readAsBytes(); setD(() { imgBytes = b; ext = i.name.split('.').last; }); } }, child: Center(child: CircleAvatar(radius: 50, backgroundColor: _inputFillColor(context), backgroundImage: imgBytes != null ? MemoryImage(imgBytes!) : (isEdit && store['logo_url']!=null ? NetworkImage(store['logo_url']) : null) as ImageProvider?, child: imgBytes == null && (!isEdit || store['logo_url'] == null) ? const Icon(Icons.camera_alt, size: 30) : null))),
+          const SizedBox(height: 24),
+          _textField('Store Name *', nameCtrl),
+          const SizedBox(height: 12),
+          _textField('Store Full Address *', addrCtrl),
+          const SizedBox(height: 12),
+          Row(children: [Expanded(child: _textField('City', cityCtrl)), const SizedBox(width: 12), Expanded(child: _textField('Contact Number', phoneCtrl))]),
+          const SizedBox(height: 12),
+          _textField('Range (km)', distCtrl),
+          const SizedBox(height: 12),
+          Row(children: [Expanded(child: _textField('Latitude', latCtrl)), const SizedBox(width: 12), Expanded(child: _textField('Longitude', lngCtrl))]),
+        ]))), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: GoogleFonts.inter(color: _subtextColor(context)))), ElevatedButton(onPressed: sub ? null : () async { setD(()=>sub=true); try { String? url = isEdit?store['logo_url']:null; if(imgBytes!=null){ final p = 'store_${DateTime.now().millisecondsSinceEpoch}.$ext'; await Supabase.instance.client.storage.from('store-images').uploadBinary(p, imgBytes!); url = Supabase.instance.client.storage.from('store-images').getPublicUrl(p); } final d = {'name':nameCtrl.text, 'address':addrCtrl.text, 'city':cityCtrl.text, 'phone':phoneCtrl.text, 'distance_km': double.tryParse(distCtrl.text), 'latitude': double.tryParse(latCtrl.text), 'longitude': double.tryParse(lngCtrl.text), 'logo_url':url}; if(isEdit) await Supabase.instance.client.from('stores').update(d).eq('id', store['id']); else await Supabase.instance.client.from('stores').insert(d); Navigator.pop(ctx); _loadStores(); } catch(e){_showToast('$e', Colors.red); setD(()=>sub=false);} }, style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: Text(isEdit?'Update':'Save', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)))]),
+      );
     }));
   }
 
@@ -1169,7 +1188,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Container(
         decoration: BoxDecoration(
-            color: _bgColor(context),
+            color: _inputFillColor(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _borderColor(context))
         ),
@@ -1332,138 +1351,142 @@ class _SettingsScreenState extends State<SettingsScreen> {
         context: context,
         builder: (ctx) => StatefulBuilder(
             builder: (c, setD) {
-              return AlertDialog(
-                  backgroundColor: _surfaceColor(context),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _borderColor(context))),
-                  title: Text(isEdit ? 'Edit Service' : 'Add New Service', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: _textColor(context))),
-                  content: SizedBox(
-                      width: 600,
-                      child: SingleChildScrollView(
-                          child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Service Image', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
-                                const SizedBox(height: 8),
-                                GestureDetector(
-                                    onTap: () async {
-                                      final i = await ImagePicker().pickImage(source: ImageSource.gallery);
-                                      if(i!=null){ final b = await i.readAsBytes(); setD((){imgBytes=b; ext=i.name.split('.').last;}); }
-                                    },
-                                    child: Container(
-                                        height: 140,
-                                        width: double.infinity,
-                                        decoration: BoxDecoration(
-                                            color: _isDark(context) ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: _borderColor(context), style: BorderStyle.solid)
-                                        ),
-                                        child: imgBytes != null
-                                            ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(imgBytes!, fit: BoxFit.cover))
-                                            : (isEdit && service['image_url'] != null)
-                                            ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(service['image_url'], fit: BoxFit.cover))
-                                            : Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Container(
-                                                padding: const EdgeInsets.all(12),
-                                                decoration: BoxDecoration(color: const Color(0xFF4F46E5).withOpacity(0.1), shape: BoxShape.circle),
-                                                child: const Icon(Icons.cloud_upload_outlined, size: 24, color: Color(0xFF4F46E5))
-                                            ),
-                                            const SizedBox(height: 12),
-                                            Text('Click to select an image', style: GoogleFonts.inter(color: _textColor(context), fontSize: 14, fontWeight: FontWeight.w500)),
-                                          ],
+              return BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: AlertDialog(
+                    backgroundColor: _surfaceColor(context),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _borderColor(context))),
+                    title: Text(isEdit ? 'Edit Service' : 'Add New Service', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: _textColor(context))),
+                    content: SizedBox(
+                        width: 600,
+                        child: SingleChildScrollView(
+                            child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Service Image', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
+                                  const SizedBox(height: 8),
+                                  GestureDetector(
+                                      onTap: () async {
+                                        final i = await ImagePicker().pickImage(source: ImageSource.gallery);
+                                        if(i!=null){ final b = await i.readAsBytes(); setD((){imgBytes=b; ext=i.name.split('.').last;}); }
+                                      },
+                                      child: Container(
+                                          height: 140,
+                                          width: double.infinity,
+                                          decoration: BoxDecoration(
+                                              color: _inputFillColor(context),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: _borderColor(context), style: BorderStyle.solid)
+                                          ),
+                                          child: imgBytes != null
+                                              ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(imgBytes!, fit: BoxFit.cover))
+                                              : (isEdit && service['image_url'] != null)
+                                              ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(service['image_url'], fit: BoxFit.cover))
+                                              : Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Container(
+                                                  padding: const EdgeInsets.all(12),
+                                                  decoration: BoxDecoration(color: const Color(0xFF4F46E5).withOpacity(0.1), shape: BoxShape.circle),
+                                                  child: const Icon(Icons.cloud_upload_outlined, size: 24, color: Color(0xFF4F46E5))
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Text('Click to select an image', style: GoogleFonts.inter(color: _textColor(context), fontSize: 14, fontWeight: FontWeight.w500)),
+                                            ],
+                                          )
+                                      )
+                                  ),
+                                  const SizedBox(height: 24),
+
+                                  Row(children: [
+                                    Expanded(child: _textField('Service Title *', titleCtrl, hint: 'e.g. Basic Wash')),
+                                    const SizedBox(width: 16),
+                                    Expanded(child: _textField('Category *', catCtrl, hint: 'Laundry'))
+                                  ]),
+                                  const SizedBox(height: 16),
+
+                                  _textField('Description', descCtrl, hint: 'Short description of the service'),
+                                  const SizedBox(height: 16),
+
+                                  Row(children: [
+                                    Expanded(child: _textField('Price (৳) *', priceCtrl, hint: 'e.g. 150.00')),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                        child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text('Duration', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
+                                              const SizedBox(height: 8),
+                                              DropdownButtonFormField<String>(
+                                                value: duration,
+                                                decoration: _inputDeco(),
+                                                dropdownColor: _surfaceColor(context),
+                                                items: durationOptions.map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))))).toList(),
+                                                onChanged: (v) => setD(() => duration = v!),
+                                              ),
+                                            ]
                                         )
                                     )
-                                ),
-                                const SizedBox(height: 24),
+                                  ]),
+                                  const SizedBox(height: 16),
 
-                                Row(children: [
-                                  Expanded(child: _textField('Service Title *', titleCtrl, hint: 'e.g. Basic Wash')),
-                                  const SizedBox(width: 16),
-                                  Expanded(child: _textField('Category *', catCtrl, hint: 'Laundry'))
-                                ]),
-                                const SizedBox(height: 16),
-
-                                _textField('Description', descCtrl, hint: 'Short description of the service'),
-                                const SizedBox(height: 16),
-
-                                Row(children: [
-                                  Expanded(child: _textField('Price (৳) *', priceCtrl, hint: 'e.g. 150.00')),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                      child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text('Duration', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))),
-                                            const SizedBox(height: 8),
-                                            DropdownButtonFormField<String>(
-                                              value: duration,
-                                              decoration: _inputDeco(),
-                                              dropdownColor: _surfaceColor(context),
-                                              items: durationOptions.map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.inter(fontSize: 14, color: _textColor(context))))).toList(),
-                                              onChanged: (v) => setD(() => duration = v!),
-                                            ),
-                                          ]
-                                      )
-                                  )
-                                ]),
-                                const SizedBox(height: 16),
-
-                                Row(children: [
-                                  Expanded(child: _textField('Tag 1 (Optional)', tag1Ctrl, hint: 'e.g. Popular')),
-                                  const SizedBox(width: 16),
-                                  Expanded(child: _textField('Tag 2 (Optional)', tag2Ctrl, hint: 'e.g. Fast'))
-                                ]),
-                              ]
-                          )
-                      )
-                  ),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: Text('Cancel', style: GoogleFonts.inter(color: _subtextColor(context), fontWeight: FontWeight.w600))
+                                  Row(children: [
+                                    Expanded(child: _textField('Tag 1 (Optional)', tag1Ctrl, hint: 'e.g. Popular')),
+                                    const SizedBox(width: 16),
+                                    Expanded(child: _textField('Tag 2 (Optional)', tag2Ctrl, hint: 'e.g. Fast'))
+                                  ]),
+                                ]
+                            )
+                        )
                     ),
-                    ElevatedButton(
-                        onPressed: sub ? null : () async {
-                          setD(()=>sub=true);
-                          try {
-                            String? url = isEdit ? service['image_url'] : null;
-                            if(imgBytes!=null){
-                              final p = 'service_${DateTime.now().millisecondsSinceEpoch}.$ext';
-                              await Supabase.instance.client.storage.from('service-images').uploadBinary(p, imgBytes!);
-                              url = Supabase.instance.client.storage.from('service-images').getPublicUrl(p);
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text('Cancel', style: GoogleFonts.inter(color: _subtextColor(context), fontWeight: FontWeight.w600))
+                      ),
+                      ElevatedButton(
+                          onPressed: sub ? null : () async {
+                            setD(()=>sub=true);
+                            try {
+                              String? url = isEdit ? service['image_url'] : null;
+                              if(imgBytes!=null){
+                                final p = 'service_${DateTime.now().millisecondsSinceEpoch}.$ext';
+                                await Supabase.instance.client.storage.from('service-images').uploadBinary(p, imgBytes!);
+                                url = Supabase.instance.client.storage.from('service-images').getPublicUrl(p);
+                              }
+                              final tags = [if(tag1Ctrl.text.isNotEmpty) tag1Ctrl.text, if(tag2Ctrl.text.isNotEmpty) tag2Ctrl.text];
+                              final data = {
+                                'title':titleCtrl.text,
+                                'category': catCtrl.text,
+                                'price':double.parse(priceCtrl.text),
+                                'description':descCtrl.text,
+                                'duration': duration,
+                                'tags': tags,
+                                'image_url':url
+                              };
+                              if(isEdit) {
+                                await Supabase.instance.client.from('services').update(data).eq('id', service['id']);
+                              } else {
+                                await Supabase.instance.client.from('services').insert(data);
+                              }
+                              Navigator.pop(ctx);
+                              _loadServices();
+                            } catch(e) {
+                              _showToast('$e', Colors.red);
+                              setD(()=>sub=false);
                             }
-                            final tags = [if(tag1Ctrl.text.isNotEmpty) tag1Ctrl.text, if(tag2Ctrl.text.isNotEmpty) tag2Ctrl.text];
-                            final data = {
-                              'title':titleCtrl.text,
-                              'category': catCtrl.text,
-                              'price':double.parse(priceCtrl.text),
-                              'description':descCtrl.text,
-                              'duration': duration,
-                              'tags': tags,
-                              'image_url':url
-                            };
-                            if(isEdit) {
-                              await Supabase.instance.client.from('services').update(data).eq('id', service['id']);
-                            } else {
-                              await Supabase.instance.client.from('services').insert(data);
-                            }
-                            Navigator.pop(ctx);
-                            _loadServices();
-                          } catch(e) {
-                            _showToast('$e', Colors.red);
-                            setD(()=>sub=false);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4F46E5),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)
-                        ),
-                        child: Text(isEdit?'Update Service':'Save Service', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
-                    )
-                  ]
+                          },
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF4F46E5),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)
+                          ),
+                          child: Text(isEdit?'Update Service':'Save Service', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
+                      )
+                    ]
+                ),
               );
             }
         )
@@ -1503,7 +1526,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _textField(String label, TextEditingController ctrl, {bool obscure = false, bool readOnly = false, String? hint}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: _textColor(context))), const SizedBox(height: 8), TextFormField(controller: ctrl, obscureText: obscure, readOnly: readOnly, style: GoogleFonts.inter(fontSize: 14, color: _textColor(context)), decoration: _inputDeco(hint: hint))]);
 
-  InputDecoration _inputDeco({String? hint}) => InputDecoration(hintText: hint, hintStyle: GoogleFonts.inter(color: _subtextColor(context).withOpacity(0.5)), filled: true, fillColor: _bgColor(context), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _borderColor(context))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _borderColor(context))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)));
+  InputDecoration _inputDeco({String? hint}) => InputDecoration(hintText: hint, hintStyle: GoogleFonts.inter(color: _subtextColor(context).withOpacity(0.5)), filled: true, fillColor: _inputFillColor(context), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _borderColor(context))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _borderColor(context))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)));
 
   Widget _actionButton(String label, Color color, IconData icon, VoidCallback onTap) => ElevatedButton.icon(onPressed: _isSaving ? null : onTap, icon: Icon(icon, size: 18, color: Colors.white), label: Text(label, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: color, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
 
