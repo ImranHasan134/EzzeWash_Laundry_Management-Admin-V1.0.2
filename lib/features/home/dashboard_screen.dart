@@ -336,7 +336,8 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
   Future<void> _loadStats() async {
     try {
-      var query = supabase.from(AppConstants.ordersTable).select('id, order_number, status, total_price, created_at, profiles(full_name), services(title)');
+      // --- UPDATED QUERY: Included pickup_date, pickup_time, is_manual, and manual_customer_name ---
+      var query = supabase.from(AppConstants.ordersTable).select('id, order_number, status, total_price, created_at, pickup_date, pickup_time, is_manual, manual_customer_name, profiles(full_name), services(title)');
       if (!widget.isSuperAdmin && widget.managerStoreId != null) query = query.eq('store_id', widget.managerStoreId!);
       final ordersData = await query.order('created_at', ascending: false);
       final ridersData = await supabase.from(AppConstants.ridersTable).select('id, full_name, vehicle_type, vehicle_plate, is_online, is_active, avatar_url').eq('is_online', true);
@@ -363,14 +364,37 @@ class _DashboardHomeState extends State<_DashboardHome> {
         final diffDays = today.difference(DateTime(d.year, d.month, d.day)).inDays;
         if (diffDays >= 0 && diffDays < 7) weekRev[6 - diffDays] += price;
       }
-      active.sort((a, b) => (a['created_at'] ?? '').compareTo(b['created_at'] ?? ''));
+
+      // --- NEW: Smart Sorting by Pickup Date & Time ---
+      active.sort((a, b) {
+        final dateA = a['pickup_date'] ?? '9999-12-31';
+        final dateB = b['pickup_date'] ?? '9999-12-31';
+        int dateCompare = dateA.compareTo(dateB);
+        if (dateCompare != 0) return dateCompare;
+
+        // If dates are identical, parse time to 24-hour format integers to sort chronologically
+        int timeVal(String? t) {
+          if (t == null) return 9999;
+          final match = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)', caseSensitive: false).firstMatch(t);
+          if (match != null) {
+            int h = int.parse(match.group(1)!);
+            int m = int.parse(match.group(2)!);
+            String ampm = match.group(3)!.toUpperCase();
+            if (ampm == 'PM' && h < 12) h += 12;
+            if (ampm == 'AM' && h == 12) h = 0;
+            return h * 60 + m;
+          }
+          return 9999;
+        }
+        return timeVal(a['pickup_time']).compareTo(timeVal(b['pickup_time']));
+      });
 
       if (mounted) {
         setState(() {
           _stats = {'total': all.length, 'pending': pending, 'active': active.length, 'delivered': delivered, 'todayRevenue': todayRev, 'ridersOnline': (ridersData as List).length};
           _weeklyRevenue = weekRev;
           _weeklyLabels = weekLbl;
-          _actionRequired = List<Map<String, dynamic>>.from(active.take(6));
+          _actionRequired = List<Map<String, dynamic>>.from(active.take(6)); // Still grab top 6, but now they are the most urgent ones!
           _liveRiders = List<Map<String, dynamic>>.from(ridersData);
           _loading = false;
         });
@@ -764,7 +788,6 @@ class _ActionRequiredFeed extends StatelessWidget {
     final isDark = _isDark(context);
 
     return Container(
-      // Outer shadow container
       decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.05), blurRadius: 30, offset: const Offset(0, 10))]
@@ -772,7 +795,7 @@ class _ActionRequiredFeed extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0), // Glass blur effect
+          filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
           child: Container(
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1E293B).withOpacity(0.6) : Colors.white.withOpacity(0.75),
@@ -809,6 +832,44 @@ class _ActionRequiredFeed extends StatelessWidget {
                 final isActionable = ['pending', 'confirmed', 'ready'].contains(o['status']);
                 final displayName = o['is_manual'] == true ? (o['manual_customer_name'] ?? 'Manual Customer') : ((o['profiles'] as Map?)?['full_name'] ?? 'Guest');
 
+                // --- NEW: SCHEDULE BADGE LOGIC ---
+                final String? rawDate = o['pickup_date'];
+                final String? rawTime = o['pickup_time'] ?? 'Anytime';
+                String scheduleLabel = 'Schedule pending';
+                Color scheduleColor = Colors.grey;
+                IconData scheduleIcon = Icons.calendar_today_rounded;
+
+                if (rawDate != null) {
+                  final parsedDate = DateTime.tryParse(rawDate);
+                  if (parsedDate != null) {
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
+                    final tomorrow = today.add(const Duration(days: 1));
+                    final targetDate = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
+
+                    if (targetDate == today) {
+                      scheduleLabel = 'Today, $rawTime';
+                      scheduleColor = Colors.green.shade600;
+                      scheduleIcon = Icons.directions_bike_rounded;
+                    } else if (targetDate == tomorrow) {
+                      scheduleLabel = 'Tomorrow, $rawTime';
+                      scheduleColor = Colors.orange.shade600;
+                      scheduleIcon = Icons.update_rounded;
+                    } else if (targetDate.isAfter(tomorrow)) {
+                      final formattedDate = '${parsedDate.day.toString().padLeft(2, '0')}-${parsedDate.month.toString().padLeft(2, '0')}-${parsedDate.year}';
+                      scheduleLabel = 'Advance ($formattedDate), $rawTime';
+                      scheduleColor = Colors.deepOrange;
+                      scheduleIcon = Icons.event_rounded;
+                    } else {
+                      final daysOverdue = today.difference(targetDate).inDays;
+                      final formattedDate = '${parsedDate.year}-${parsedDate.month.toString().padLeft(2, '0')}-${parsedDate.day.toString().padLeft(2, '0')}';
+                      scheduleLabel = 'Overdue: $formattedDate ($daysOverdue day${daysOverdue > 1 ? 's' : ''})';
+                      scheduleColor = Colors.red;
+                      scheduleIcon = Icons.warning_rounded;
+                    }
+                  }
+                }
+
                 return Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -823,6 +884,33 @@ class _ActionRequiredFeed extends StatelessWidget {
                           Text('#${o['order_number']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: _textColor(context))),
                           const SizedBox(height: 4),
                           Text('$displayName • ${o['status'].toString().toUpperCase().replaceAll('_', ' ')}', style: GoogleFonts.inter(fontSize: 13, color: _subtextColor(context), fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+
+                          // --- NEW: THE SCHEDULED TIME BADGE ---
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: scheduleColor.withOpacity(0.1),
+                              border: Border.all(color: scheduleColor.withOpacity(0.3)),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(scheduleIcon, size: 12, color: scheduleColor),
+                                const SizedBox(width: 4),
+                                Text(
+                                  scheduleLabel,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: scheduleColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // -------------------------------------
                         ])),
                         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                           Text(urgency['text'], style: GoogleFonts.inter(color: uColor, fontWeight: FontWeight.bold, fontSize: 13)),
