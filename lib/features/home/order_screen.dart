@@ -32,7 +32,7 @@ class OrderScreenState extends State<OrderScreen> {
   List<Map<String, dynamic>> _allOrders = []; List<Map<String, dynamic>> _filtered = [];
   List<Map<String, dynamic>> _storeOptions = []; List<Map<String, dynamic>> _serviceOptions = [];
   String _statusFilter = 'All'; String _searchQuery = ''; String _sortOption = 'Newest First';
-  String _storeFilter = 'All'; String _serviceFilter = 'All';
+  String _storeFilter = 'All'; String _serviceFilter = 'All'; String _scheduleFilter = 'All'; // Schedule Filter
   RealtimeChannel? _channel;
 
   final _statuses = ['All', 'pending', 'confirmed', 'assign_pickup', 'picked_up', 'dropped', 'received', 'in_process', 'ready', 'out_for_delivery', 'delivered', 'cancelled'];
@@ -83,18 +83,34 @@ class OrderScreenState extends State<OrderScreen> {
     } catch (e) { if (mounted) setState(() => _loading = false); }
   }
 
+  // --- UPDATED: Helper for Schedule Filtering (Now maps Tomorrow and beyond to 'Advance Booking') ---
+  String _getScheduleCategory(String? rawDate) {
+    if (rawDate == null) return 'None';
+    final parsed = DateTime.tryParse(rawDate);
+    if (parsed == null) return 'None';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(parsed.year, parsed.month, parsed.day);
+
+    if (target == today) return 'Today';
+    if (target.isAfter(today)) return 'Advance Booking'; // Covers Tomorrow and any future date
+    if (target.isBefore(today)) return 'Overdue';
+    return 'None';
+  }
+
   void _applyFilter() {
     _filtered = _allOrders.where((o) {
       final matchStatus = _statusFilter == 'All' || o['status'] == _statusFilter;
       final matchStore  = (!widget.isSuperAdmin) || _storeFilter == 'All' || o['store_id'].toString() == _storeFilter;
       final matchService = _serviceFilter == 'All' || o['service_id'].toString() == _serviceFilter;
+      final matchSchedule = _scheduleFilter == 'All' || _getScheduleCategory(o['pickup_date']) == _scheduleFilter;
       final q = _searchQuery.toLowerCase();
       final profileName = ((o['profiles'] as Map?)?['full_name'] ?? '').toString().toLowerCase();
       final manualName = (o['manual_customer_name'] ?? '').toString().toLowerCase();
       final orderNum = (o['order_number'] ?? '').toString().toLowerCase();
       final serviceTitle = ((o['services'] as Map?)?['title'] ?? '').toString().toLowerCase();
       final matchSearch = q.isEmpty || orderNum.contains(q) || profileName.contains(q) || manualName.contains(q) || serviceTitle.contains(q);
-      return matchStatus && matchSearch && matchStore && matchService;
+      return matchStatus && matchSearch && matchStore && matchService && matchSchedule;
     }).toList();
     if (_sortOption == 'Newest First') _filtered.sort((a, b) => (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''));
     else _filtered.sort((a, b) => (a['created_at'] ?? '').compareTo(b['created_at'] ?? ''));
@@ -201,7 +217,7 @@ class OrderScreenState extends State<OrderScreen> {
         ),
         const SizedBox(height: 16),
         if (columnOrders.isEmpty) Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('No orders', style: TextStyle(color: _subtextColor(context)))))
-        else ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: columnOrders.length, separatorBuilder: (_, __) => const SizedBox(height: 16), itemBuilder: (_, i) => _OrderCard(order: columnOrders[i], onActionClick: () => _handleActionClick(columnOrders[i]), onCancelClick: () {}, onEditClick: () => openAddOrderDialog(columnOrders[i]), onPrintClick: () => _generateAndPrintReceipt(columnOrders[i]))),
+        else ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: columnOrders.length, separatorBuilder: (_, __) => const SizedBox(height: 16), itemBuilder: (_, i) => _OrderCard(order: columnOrders[i], onActionClick: () => _handleActionClick(columnOrders[i]), onCancelClick: () => _updateStatus(columnOrders[i]['id'], 'cancelled'), onEditClick: () => openAddOrderDialog(columnOrders[i]), onPrintClick: () => _generateAndPrintReceipt(columnOrders[i]))),
       ],
     );
   }
@@ -238,6 +254,11 @@ class OrderScreenState extends State<OrderScreen> {
 
               Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), decoration: BoxDecoration(color: _surfaceColor(context), borderRadius: BorderRadius.circular(14), border: Border.all(color: _borderColor(context))), child: DropdownButtonHideUnderline(child: DropdownButton<String>(dropdownColor: _surfaceColor(context), value: _serviceFilter, items: [ DropdownMenuItem(value: 'All', child: Text('All Services', style: TextStyle(fontSize: 14, color: _textColor(context)))), ..._serviceOptions.map((s) => DropdownMenuItem(value: s['id'].toString(), child: Text(s['title'], style: TextStyle(fontSize: 14, color: _textColor(context)))))], onChanged: (v) => setState(() { _serviceFilter = v!; _applyFilter(); })))),
               const SizedBox(width: 16),
+
+              // --- UPDATED: SCHEDULE FILTER DROPDOWN (Now Uses 'Advance Booking') ---
+              Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), decoration: BoxDecoration(color: _surfaceColor(context), borderRadius: BorderRadius.circular(14), border: Border.all(color: _borderColor(context))), child: DropdownButtonHideUnderline(child: DropdownButton<String>(dropdownColor: _surfaceColor(context), value: _scheduleFilter, items: ['All', 'Today', 'Advance Booking', 'Overdue'].map((s) => DropdownMenuItem(value: s, child: Text(s == 'All' ? 'All Schedules' : s, style: TextStyle(fontSize: 14, color: _textColor(context))))).toList(), onChanged: (v) => setState(() { _scheduleFilter = v!; _applyFilter(); })))),
+              const SizedBox(width: 16),
+
               Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), decoration: BoxDecoration(color: _surfaceColor(context), borderRadius: BorderRadius.circular(14), border: Border.all(color: _borderColor(context))), child: DropdownButtonHideUnderline(child: DropdownButton<String>(dropdownColor: _surfaceColor(context), value: _sortOption, items: ['Newest First', 'Oldest First'].map((s) => DropdownMenuItem(value: s, child: Text(s, style:TextStyle(fontSize: 14,color: _textColor(context))))).toList(), onChanged: (v) => setState(() { _sortOption = v!; _applyFilter(); })))),
             ]),
             const SizedBox(height: 24),
@@ -363,6 +384,46 @@ class _OrderCard extends StatelessWidget {
     if (['assign_pickup', 'picked_up', 'dropped'].contains(status)) { activeRider = pickupRider; riderRole = 'Pickup Rider'; }
     else if (['out_for_delivery', 'delivered'].contains(status)) { activeRider = deliveryRider; riderRole = 'Delivery Rider'; }
 
+    // --- UPDATED: SCHEDULE BADGE LOGIC (Explicit 'Tomorrow' vs 'Advance') ---
+    final String? rawDate = order['pickup_date'];
+    final String? rawTime = order['pickup_time'] ?? 'Anytime';
+
+    String scheduleLabel = 'Schedule pending';
+    Color scheduleColor = Colors.grey;
+    IconData scheduleIcon = Icons.calendar_today_rounded;
+
+    if (rawDate != null) {
+      final parsedDate = DateTime.tryParse(rawDate);
+      if (parsedDate != null) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final tomorrow = today.add(const Duration(days: 1));
+        final targetDate = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
+
+        if (targetDate == today) {
+          scheduleLabel = 'Today, $rawTime';
+          scheduleColor = Colors.green.shade600;
+          scheduleIcon = Icons.directions_bike_rounded;
+        } else if (targetDate == tomorrow) {
+          scheduleLabel = 'Tomorrow, $rawTime';
+          scheduleColor = Colors.orange.shade600;
+          scheduleIcon = Icons.update_rounded;
+        } else if (targetDate.isAfter(tomorrow)) {
+          // Format as DD-MM-YYYY for clarity
+          final formattedDate = '${parsedDate.day.toString().padLeft(2, '0')}-${parsedDate.month.toString().padLeft(2, '0')}-${parsedDate.year}';
+          scheduleLabel = 'Advance ($formattedDate), $rawTime';
+          scheduleColor = Colors.deepOrange;
+          scheduleIcon = Icons.event_rounded;
+        } else {
+          final daysOverdue = today.difference(targetDate).inDays;
+          final formattedDate = '${parsedDate.year}-${parsedDate.month.toString().padLeft(2, '0')}-${parsedDate.day.toString().padLeft(2, '0')}';
+          scheduleLabel = 'Overdue: $formattedDate ($daysOverdue day${daysOverdue > 1 ? 's' : ''})';
+          scheduleColor = Colors.red;
+          scheduleIcon = Icons.warning_rounded;
+        }
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: _surfaceColor(context), borderRadius: BorderRadius.circular(20), border: Border.all(color: _borderColor(context)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(_isDark(context) ? 0.2 : 0.02), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -383,7 +444,34 @@ class _OrderCard extends StatelessWidget {
               ]
             ]),
             const SizedBox(height: 4), Text(displayName, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: _textColor(context))),
-            if (activeRider != null) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [const Icon(Icons.delivery_dining, size: 16, color: AppColors.success), const SizedBox(width: 6), Text('$riderRole: ${activeRider['full_name']}', style: GoogleFonts.inter(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.w600))]))
+
+            // --- THE SCHEDULED TIME BADGE ---
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: scheduleColor.withOpacity(0.1), // Soft background based on day
+                border: Border.all(color: scheduleColor.withOpacity(0.3)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min, // Keeps the badge snug to the text
+                children: [
+                  Icon(scheduleIcon, size: 14, color: scheduleColor),
+                  const SizedBox(width: 6),
+                  Text(
+                    scheduleLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: scheduleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            if (activeRider != null) Padding(padding: const EdgeInsets.only(top: 8), child: Row(children: [const Icon(Icons.delivery_dining, size: 16, color: AppColors.success), const SizedBox(width: 6), Text('$riderRole: ${activeRider['full_name']}', style: GoogleFonts.inter(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.w600))]))
           ])),
           Text('৳${((order['total_price'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 24, color: AppColors.primary)),
         ]),
@@ -618,7 +706,7 @@ class _AddOrderDialogState extends State<_AddOrderDialog> {
                 )
             )
         ));
-    }
+  }
 }
 
 class _GradientButton extends StatelessWidget {
