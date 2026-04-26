@@ -121,7 +121,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with TickerProvider
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _borderColor(context))),
     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _borderColor(context))),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2.0)),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color:  const Color(0xFF05BCFF), width: 0.5)),
     errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.error.withOpacity(0.5), width: 1.5)),
     focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.error, width: 2.0)),
   );
@@ -249,12 +249,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with TickerProvider
                                       // Removed the blue gradient so your custom logo's colors show properly
                                       color: _surfaceColor(context),
                                       borderRadius: BorderRadius.circular(24),
-                                      boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 24, offset: const Offset(0, 10))],
+                                      boxShadow: [BoxShadow(color:  const Color(0xFF05BCFF).withOpacity(1.0), blurRadius: 24, offset: const Offset(0, 10))],
                                     ),
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(24),
                                       child: Image.asset(
-                                        'assets/icon/logo.png', // Ensure this matches the image path in your pubspec.yaml
+                                        'assets/icon/logo.png',
                                         fit: BoxFit.cover,
                                       ),
                                     ),
@@ -323,7 +323,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with TickerProvider
                                       gradient: _loading ? null : AppColors.gradient,
                                       color: _loading ? _borderColor(context) : null,
                                       borderRadius: BorderRadius.circular(16),
-                                      boxShadow: _loading ? [] : [BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
+                                      boxShadow: _loading ? [] : [BoxShadow(color:  const Color(0xFF05BCFF).withOpacity(0.6), blurRadius: 20, offset: const Offset(0, 8))],
                                     ),
                                     child: ElevatedButton(
                                       onPressed: _loading ? null : _handleLogin,

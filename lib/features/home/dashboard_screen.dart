@@ -226,16 +226,30 @@ class _Sidebar extends StatelessWidget {
       collapsed
           ? Container(
         width: 44, height: 44,
-        decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))]),
-        child: const Icon(Icons.local_laundry_service, color: Colors.white, size: 24),
+        decoration: BoxDecoration(
+            color: _surfaceColor(context),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.asset('assets/icon/logo.png', fit: BoxFit.cover),
+        ),
       )
           : Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Row(children: [
           Container(
             width: 40, height: 40,
-            decoration: BoxDecoration(gradient: AppColors.gradient, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))]),
-            child: const Icon(Icons.local_laundry_service, color: Colors.white, size: 20),
+            decoration: BoxDecoration(
+                color: _surfaceColor(context),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset('assets/icon/logo.png', fit: BoxFit.cover),
+            ),
           ),
           const SizedBox(width: 16),
           Flexible(child: Text('EzeeWash', style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800, color: _textColor(context)))),
@@ -336,7 +350,6 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
   Future<void> _loadStats() async {
     try {
-      // --- UPDATED QUERY: Included pickup_date, pickup_time, is_manual, and manual_customer_name ---
       var query = supabase.from(AppConstants.ordersTable).select('id, order_number, status, total_price, created_at, pickup_date, pickup_time, is_manual, manual_customer_name, profiles(full_name), services(title)');
       if (!widget.isSuperAdmin && widget.managerStoreId != null) query = query.eq('store_id', widget.managerStoreId!);
       final ordersData = await query.order('created_at', ascending: false);
@@ -365,14 +378,12 @@ class _DashboardHomeState extends State<_DashboardHome> {
         if (diffDays >= 0 && diffDays < 7) weekRev[6 - diffDays] += price;
       }
 
-      // --- NEW: Smart Sorting by Pickup Date & Time ---
       active.sort((a, b) {
         final dateA = a['pickup_date'] ?? '9999-12-31';
         final dateB = b['pickup_date'] ?? '9999-12-31';
         int dateCompare = dateA.compareTo(dateB);
         if (dateCompare != 0) return dateCompare;
 
-        // If dates are identical, parse time to 24-hour format integers to sort chronologically
         int timeVal(String? t) {
           if (t == null) return 9999;
           final match = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)', caseSensitive: false).firstMatch(t);
@@ -394,7 +405,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
           _stats = {'total': all.length, 'pending': pending, 'active': active.length, 'delivered': delivered, 'todayRevenue': todayRev, 'ridersOnline': (ridersData as List).length};
           _weeklyRevenue = weekRev;
           _weeklyLabels = weekLbl;
-          _actionRequired = List<Map<String, dynamic>>.from(active.take(6)); // Still grab top 6, but now they are the most urgent ones!
+          _actionRequired = List<Map<String, dynamic>>.from(active.take(6));
           _liveRiders = List<Map<String, dynamic>>.from(ridersData);
           _loading = false;
         });
@@ -832,7 +843,7 @@ class _ActionRequiredFeed extends StatelessWidget {
                 final isActionable = ['pending', 'confirmed', 'ready'].contains(o['status']);
                 final displayName = o['is_manual'] == true ? (o['manual_customer_name'] ?? 'Manual Customer') : ((o['profiles'] as Map?)?['full_name'] ?? 'Guest');
 
-                // --- NEW: SCHEDULE BADGE LOGIC ---
+                // --- SCHEDULE BADGE LOGIC ---
                 final String? rawDate = o['pickup_date'];
                 final String? rawTime = o['pickup_time'] ?? 'Anytime';
                 String scheduleLabel = 'Schedule pending';
@@ -886,7 +897,7 @@ class _ActionRequiredFeed extends StatelessWidget {
                           Text('$displayName • ${o['status'].toString().toUpperCase().replaceAll('_', ' ')}', style: GoogleFonts.inter(fontSize: 13, color: _subtextColor(context), fontWeight: FontWeight.w600)),
                           const SizedBox(height: 8),
 
-                          // --- NEW: THE SCHEDULED TIME BADGE ---
+                          // THE SCHEDULED TIME BADGE
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
@@ -910,7 +921,6 @@ class _ActionRequiredFeed extends StatelessWidget {
                               ],
                             ),
                           ),
-                          // -------------------------------------
                         ])),
                         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                           Text(urgency['text'], style: GoogleFonts.inter(color: uColor, fontWeight: FontWeight.bold, fontSize: 13)),
@@ -955,7 +965,6 @@ class _LiveRidersPanel extends StatelessWidget {
     final isDark = _isDark(context);
 
     return Container(
-      // Outer shadow container
       decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.05), blurRadius: 30, offset: const Offset(0, 10))]
@@ -963,7 +972,7 @@ class _LiveRidersPanel extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0), // Glass blur effect
+          filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
           child: Container(
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1E293B).withOpacity(0.6) : Colors.white.withOpacity(0.75),

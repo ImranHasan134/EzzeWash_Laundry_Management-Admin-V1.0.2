@@ -8,7 +8,7 @@ class AppColors {
   static bool get _isDark => darkModeNotifier.value;
 
   // Primary colors remain static
-  static const primary    = Color(0xFF4F46E5);
+  static const primary    = Color(0xFF05BCFF);
   static const secondary  = Color(0xFF312E81);
   static const accent     = Color(0xFF6366F1);
 
