@@ -168,31 +168,38 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with TickerProvider
                   Positioned(
                     top: -100 + 60 * math.sin(t),
                     left: -50 + 60 * math.cos(t),
-                    child: _buildBubble(sw * 0.4, AppColors.primary, opacity),
+                    child: _buildBubble(sw * 0.4,  const Color(0xFF05BCFF), opacity),
                   ),
                   // Bottom Right Large Bubble
                   Positioned(
                     bottom: -150 + 80 * math.cos(t + math.pi / 4),
                     right: -100 + 80 * math.sin(t + math.pi / 4),
-                    child: _buildBubble(sw * 0.5, const Color(0xFF8B5CF6), opacity),
+                    child: _buildBubble(sw * 0.5, const Color(0xFF05BCFF), opacity),
                   ),
                   // Center Left Medium Bubble
                   Positioned(
                     top: sh * 0.4 + 50 * math.sin(t + math.pi),
                     left: sw * 0.1 + 50 * math.cos(t + math.pi),
-                    child: _buildBubble(sw * 0.15, const Color(0xFF3B82F6), opacity),
+                    child: _buildBubble(sw * 0.15, const Color(0xFF05BCFF), opacity),
                   ),
                   // Bottom Center Small Bubble
                   Positioned(
                     bottom: sh * 0.15 + 40 * math.cos(t + math.pi / 2),
                     left: sw * 0.3 + 40 * math.sin(t + math.pi / 2),
-                    child: _buildBubble(sw * 0.08, AppColors.primary, opacity),
+                    child: _buildBubble(sw * 0.08,  const Color(0xFF39158C), opacity),
                   ),
+                  // Top Center Small Bubble
+                  Positioned(
+                    top: sh * 0.15 + 40 * math.cos(t + math.pi / 2),
+                    right: sw * 0.3 + 40 * math.sin(t + math.pi / 2),
+                    child: _buildBubble(sw * 0.08,  const Color(0xFF39158C), opacity),
+                  ),
+
                   // Top Right Medium Bubble
                   Positioned(
                     top: sh * 0.1 + 70 * math.sin(t + math.pi * 1.5),
                     right: sw * 0.15 + 70 * math.cos(t + math.pi * 1.5),
-                    child: _buildBubble(sw * 0.2, const Color(0xFF6366F1), opacity),
+                    child: _buildBubble(sw * 0.2, const Color(0xFF05BCFF), opacity),
                   ),
                 ],
               );
@@ -239,11 +246,18 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with TickerProvider
                                   child: Container(
                                     height: 80, width: 80,
                                     decoration: BoxDecoration(
-                                      gradient: AppColors.gradient,
+                                      // Removed the blue gradient so your custom logo's colors show properly
+                                      color: _surfaceColor(context),
                                       borderRadius: BorderRadius.circular(24),
                                       boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 24, offset: const Offset(0, 10))],
                                     ),
-                                    child: const Icon(Icons.local_laundry_service, color: Colors.white, size: 40),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(24),
+                                      child: Image.asset(
+                                        'assets/icon/logo.png', // Ensure this matches the image path in your pubspec.yaml
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 32),
