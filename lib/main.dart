@@ -1,4 +1,5 @@
 // lib/main.dart
+import 'package:ezeewash_admin/features/home/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -41,7 +42,7 @@ class AdminApp extends StatelessWidget {
             textTheme: GoogleFonts.alexandriaTextTheme(),
             useMaterial3: true,
           ),
-          home: const AdminLoginScreen(),
+          home: const SplashScreen(),
         );
       },
     );
